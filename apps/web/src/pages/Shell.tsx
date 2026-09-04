@@ -1749,6 +1749,29 @@ export function ShellPage() {
   const jumpToMessageRef = useRef(jumpToMessage);
   jumpToMessageRef.current = jumpToMessage;
 
+  useEffect(() => {
+    const refreshActiveTranscript = () => {
+      if (document.visibilityState !== "visible") return;
+      const currentGroupId = activeGroupId.current;
+      if (currentGroupId) {
+        void refreshGroupThreadRef.current(currentGroupId).catch(() => undefined);
+        return;
+      }
+      const currentBotId = activeBotId.current;
+      if (currentBotId) {
+        void refreshThreadRef.current(currentBotId).catch(() => undefined);
+      }
+    };
+    window.addEventListener("focus", refreshActiveTranscript);
+    window.addEventListener("online", refreshActiveTranscript);
+    document.addEventListener("visibilitychange", refreshActiveTranscript);
+    return () => {
+      window.removeEventListener("focus", refreshActiveTranscript);
+      window.removeEventListener("online", refreshActiveTranscript);
+      document.removeEventListener("visibilitychange", refreshActiveTranscript);
+    };
+  }, []);
+
   const mentionBotsKey = useMemo(
     () => bots.map((bot) => `${bot.id}:${bot.name}`).join(","),
     [bots],
@@ -3169,6 +3192,7 @@ export function ShellPage() {
           scrollRef={messageScroll}
           artifactTarget={transcriptArtifactTarget}
           messages={transcriptMessages}
+          loading={!activeSnapshot}
           olderCursor={activeSnapshot?.olderCursor ?? null}
           loadingOlder={loadingOlder}
           answerableAskMessageId={answerableAskMessageId}
@@ -4077,6 +4101,7 @@ const Transcript = memo(function Transcript({
   scrollRef,
   artifactTarget,
   messages,
+  loading,
   olderCursor,
   loadingOlder,
   answerableAskMessageId,
@@ -4101,6 +4126,7 @@ const Transcript = memo(function Transcript({
   scrollRef: RefObject<HTMLDivElement | null>;
   artifactTarget: ArtifactTarget;
   messages: ThreadMessage[];
+  loading: boolean;
   olderCursor: number | null;
   loadingOlder: boolean;
   answerableAskMessageId: string | null;
@@ -4245,6 +4271,11 @@ const Transcript = memo(function Transcript({
         }}
         className="rk-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 py-5 md:px-7 md:py-6"
       >
+        {loading ? (
+          <div className="grid min-h-full place-items-center text-[13.5px] text-muted-foreground/80">
+            <Trans>Loading…</Trans>
+          </div>
+        ) : null}
         {olderCursor != null ? (
           <button
             type="button"

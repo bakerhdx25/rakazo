@@ -21,7 +21,12 @@ export function isPeerReceiptBlocks(blocks: readonly MessageBlock[]): boolean {
   );
 }
 
-/** Drop peer-run activity/replies; optionally keep sent/received receipt rows. */
+/** A bot's final summary after peer work, without the underlying peer transcript. */
+export function isPeerSummaryBlocks(blocks: readonly MessageBlock[]): boolean {
+  return blocks.some((block) => block.kind === "text" && block.text.trim().length > 0);
+}
+
+/** Drop peer-run activity; keep final summaries and optionally compact receipt rows. */
 export function userVisibleMessages<T extends PresentableMessage>(
   messages: readonly T[],
   options: UserVisibleMessagesOptions = {},
@@ -36,6 +41,7 @@ export function userVisibleMessages<T extends PresentableMessage>(
 
   return messages.filter((message) => {
     if (isPeerReceiptBlocks(message.blocks)) return includePeerReceipts;
-    return !message.runId || !peerRunIds.has(message.runId);
+    if (!message.runId || !peerRunIds.has(message.runId)) return true;
+    return isPeerSummaryBlocks(message.blocks);
   });
 }

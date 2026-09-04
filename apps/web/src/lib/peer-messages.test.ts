@@ -2,8 +2,13 @@ import type { ThreadMessage } from "@rakazo/contracts";
 import { describe, expect, it } from "vitest";
 import { peerConversations, peerMessagesFrom } from "./peer-messages.js";
 
-function message(id: string, createdAt: string, blocks: ThreadMessage["blocks"]): ThreadMessage {
-  return { id, threadId: "t_1", seq: 1, role: "bot", blocks, createdAt };
+function message(
+  id: string,
+  createdAt: string,
+  blocks: ThreadMessage["blocks"],
+  options: Pick<ThreadMessage, "role" | "runId"> = { role: "bot" },
+): ThreadMessage {
+  return { id, threadId: "t_1", seq: 1, blocks, createdAt, ...options };
 }
 
 const sentToAnalyst = message("m_1", "2026-08-25T10:00:00.000Z", [
@@ -30,6 +35,47 @@ describe("peer conversations", () => {
     expect(conversations[0]?.peerBotName).toBe("Analyst");
     expect(conversations[0]?.messages).toHaveLength(2);
     expect(conversations[0]?.lastText).toBe("done");
+  });
+
+  it("includes the generated reply from a bot-message run", () => {
+    const received = message(
+      "m_4",
+      "2026-08-25T10:03:00.000Z",
+      [
+        {
+          kind: "bot_message_received",
+          fromBotId: "b_2",
+          fromBotName: "Analyst",
+          text: "status?",
+        },
+      ],
+      { role: "user", runId: "run-peer" },
+    );
+    const generatedReply = message(
+      "m_5",
+      "2026-08-25T10:04:00.000Z",
+      [
+        { kind: "steps", steps: [{ label: "Research", count: 1 }], durationMs: 100 },
+        { kind: "text", text: "The report is ready." },
+      ],
+      { role: "bot", runId: "run-peer" },
+    );
+
+    expect(peerMessagesFrom([received, generatedReply])).toEqual([
+      expect.objectContaining({ direction: "received", text: "status?" }),
+      expect.objectContaining({ direction: "sent", text: "The report is ready." }),
+    ]);
+  });
+
+  it("does not attribute ordinary bot text to a peer conversation", () => {
+    const generatedReply = message(
+      "m_5",
+      "2026-08-25T10:04:00.000Z",
+      [{ kind: "text", text: "Visible human reply" }],
+      { role: "bot", runId: "run-human" },
+    );
+
+    expect(peerMessagesFrom([generatedReply])).toEqual([]);
   });
 
   it("orders conversations by most recent activity", () => {

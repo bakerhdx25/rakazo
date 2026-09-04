@@ -13,7 +13,7 @@ describe("thread message pages", () => {
     expect(findUnique).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps peer receipt rows when filtering peer-run output from pages", async () => {
+  it("keeps peer receipts and final owner summaries while filtering peer activity", async () => {
     const findMany = vi.fn(async () => [
       {
         id: "message-reply",
@@ -66,10 +66,11 @@ describe("thread message pages", () => {
     expect(page.messages.map((message) => message.id)).toEqual([
       "message-user",
       "message-received",
+      "message-reply",
     ]);
   });
 
-  it("filters peer-run output when its receipt is outside the loaded page", async () => {
+  it("keeps a peer-run owner summary when its receipt is outside the loaded page", async () => {
     const findMany = vi.fn(async () => [
       {
         id: "message-peer",
@@ -101,10 +102,10 @@ describe("thread message pages", () => {
 
     const page = await loadMessagePage(prisma, "thread-1", undefined, 2);
 
-    expect(page.messages.map((message) => message.id)).toEqual(["message-user"]);
+    expect(page.messages.map((message) => message.id)).toEqual(["message-user", "message-peer"]);
   });
 
-  it("omits peer around-page targets from the normal transcript", async () => {
+  it("keeps a peer summary around-page target but omits peer activity", async () => {
     const findMany = vi.fn(async () => [
       {
         id: "message-user",
@@ -152,7 +153,10 @@ describe("thread message pages", () => {
       seq: 6,
     });
 
-    expect(page.messages.map((message) => message.id)).toEqual(["message-user"]);
+    expect(page.messages.map((message) => message.id)).toEqual([
+      "message-user",
+      "message-peer-target",
+    ]);
     expect(runFindMany).toHaveBeenCalled();
   });
 
@@ -213,6 +217,7 @@ describe("thread message pages", () => {
     expect(page.messages.map((message) => message.id)).toEqual([
       "message-user",
       "message-peer-receipt",
+      "message-peer-text",
     ]);
   });
 
@@ -246,13 +251,13 @@ describe("thread message pages", () => {
     expect(page.messages.map((message) => message.id)).toEqual(["message-peer"]);
   });
 
-  it("scans past a page containing only peer-run output", async () => {
+  it("scans past a page containing only peer-run activity", async () => {
     const row = (seq: number, runId: string) => ({
       id: `message-${seq}`,
       threadId: "thread-1",
       seq,
       role: "bot",
-      blocks: [{ kind: "text", text: String(seq) }],
+      blocks: [{ kind: "steps", steps: [{ label: String(seq), count: 1 }] }],
       botId: "bot-1",
       replyToMessageId: null,
       runId,

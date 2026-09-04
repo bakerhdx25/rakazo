@@ -1,5 +1,5 @@
 import type { MessageBlock, ThreadMessage, ThreadMessagePage } from "@rakazo/contracts";
-import { isPeerReceiptBlocks } from "@rakazo/core";
+import { isPeerReceiptBlocks, isPeerSummaryBlocks } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "@rakazo/db";
 
 type MessageDb = PrismaClient | Prisma.TransactionClient;
@@ -35,9 +35,9 @@ export async function loadMessagePage(
       const hasOlder = first
         ? (await prisma.message.count({ where: { threadId, seq: { lt: first.seq } } })) > 0
         : false;
-      // Peer text/activity stays out of the normal transcript (including the
-      // around target). Receipts remain via withoutPeerRunMessages; full peer
-      // history belongs in the bot-messages overlay (includePeerRuns).
+      // Peer activity stays out of the normal transcript. Receipts and the
+      // receiving bot's final owner-facing summary remain; full peer history
+      // belongs in the bot-messages overlay (includePeerRuns).
       const messages = includePeerRuns ? rows : await withoutPeerRunMessages(prisma, rows);
       return {
         threadId,
@@ -106,10 +106,13 @@ async function withoutPeerRunMessages<T extends { runId: string | null; blocks: 
   const peerRunIds = new Set(peerRuns.map((run) => run.id));
   return rows.filter((row) => {
     if (!row.runId || !peerRunIds.has(row.runId)) return true;
-    // Keep compact sent/received receipts; clients render them as chips.
+    // Keep compact sent/received receipts and the bot's final summary for its
+    // owner. Tool activity and the underlying peer exchange stay hidden.
     const blocks = row.blocks as MessageBlock[];
-    return blocks.some(
-      (block) => block.kind === "bot_message_sent" || block.kind === "bot_message_received",
+    return (
+      blocks.some(
+        (block) => block.kind === "bot_message_sent" || block.kind === "bot_message_received",
+      ) || isPeerSummaryBlocks(blocks)
     );
   });
 }

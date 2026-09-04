@@ -25,9 +25,16 @@ export function isPeerBlock(block: MessageBlock): block is PeerBlock {
 
 export function peerMessagesFrom(messages: readonly ThreadMessage[]): PeerMessage[] {
   const collected: PeerMessage[] = [];
+  const receivedPeerByRun = new Map<string, { id: string; name: string }>();
   for (const message of messages) {
     for (const block of message.blocks) {
       if (!isPeerBlock(block)) continue;
+      if (block.kind === "bot_message_received" && message.runId) {
+        receivedPeerByRun.set(message.runId, {
+          id: block.fromBotId,
+          name: block.fromBotName,
+        });
+      }
       collected.push(
         block.kind === "bot_message_sent"
           ? {
@@ -47,6 +54,27 @@ export function peerMessagesFrom(messages: readonly ThreadMessage[]): PeerMessag
               createdAt: message.createdAt,
             },
       );
+    }
+
+    // A bot_message-triggered run stores its generated reply as ordinary bot
+    // text on the same run. Preserve that outgoing reply in the dedicated peer
+    // conversation as well as its concise summary in the human transcript.
+    const replyPeer = message.runId ? receivedPeerByRun.get(message.runId) : undefined;
+    if (message.role === "bot" && replyPeer) {
+      const text = message.blocks
+        .flatMap((block) => (block.kind === "text" ? [block.text] : []))
+        .join("\n\n")
+        .trim();
+      if (text) {
+        collected.push({
+          messageId: message.id,
+          direction: "sent",
+          peerBotId: replyPeer.id,
+          peerBotName: replyPeer.name,
+          text,
+          createdAt: message.createdAt,
+        });
+      }
     }
   }
   return collected;

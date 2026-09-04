@@ -59,7 +59,7 @@ describe("createRepos.listBots", () => {
     ]);
   });
 
-  it("keeps bot-to-bot run output out of sidebar previews", async () => {
+  it("uses a bot's final peer-work summary in sidebar previews", async () => {
     const findMany = vi.fn(async () => [
       {
         ...baseBot,
@@ -96,7 +96,7 @@ describe("createRepos.listBots", () => {
     };
 
     await expect(createRepos(prisma as unknown as PrismaClient).listBots(actor)).resolves.toEqual([
-      expect.objectContaining({ preview: "Visible answer" }),
+      expect.objectContaining({ preview: "Echoed peer reply" }),
     ]);
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -111,7 +111,7 @@ describe("createRepos.listBots", () => {
     );
   });
 
-  it("skips a peer-run preview tail when the receipt is outside the window", async () => {
+  it("uses a peer-work summary when the receipt is outside the preview window", async () => {
     const prisma = {
       bot: {
         findMany: vi.fn(async () => [
@@ -139,7 +139,7 @@ describe("createRepos.listBots", () => {
     };
 
     await expect(createRepos(prisma as unknown as PrismaClient).listBots(actor)).resolves.toEqual([
-      expect.objectContaining({ preview: "Visible answer" }),
+      expect.objectContaining({ preview: "Echoed peer reply" }),
     ]);
   });
 
@@ -158,7 +158,7 @@ describe("createRepos.listBots", () => {
                 {
                   seq: 20,
                   runId: "run-peer",
-                  blocks: [{ kind: "text", text: "Echoed peer reply" }],
+                  blocks: [{ kind: "steps", steps: [{ label: "Peer work", count: 1 }] }],
                 },
               ],
             },
@@ -185,10 +185,34 @@ describe("createRepos.listBots", () => {
 
   it("uses a visible message from the fourth older window for preview", async () => {
     const peerWindows = [
-      [{ seq: 80, runId: "run-peer", blocks: [{ kind: "text", text: "peer 80" }] }],
-      [{ seq: 60, runId: "run-peer", blocks: [{ kind: "text", text: "peer 60" }] }],
-      [{ seq: 40, runId: "run-peer", blocks: [{ kind: "text", text: "peer 40" }] }],
-      [{ seq: 20, runId: "run-peer", blocks: [{ kind: "text", text: "peer 20" }] }],
+      [
+        {
+          seq: 80,
+          runId: "run-peer",
+          blocks: [{ kind: "steps", steps: [{ label: "peer 80", count: 1 }] }],
+        },
+      ],
+      [
+        {
+          seq: 60,
+          runId: "run-peer",
+          blocks: [{ kind: "steps", steps: [{ label: "peer 60", count: 1 }] }],
+        },
+      ],
+      [
+        {
+          seq: 40,
+          runId: "run-peer",
+          blocks: [{ kind: "steps", steps: [{ label: "peer 40", count: 1 }] }],
+        },
+      ],
+      [
+        {
+          seq: 20,
+          runId: "run-peer",
+          blocks: [{ kind: "steps", steps: [{ label: "peer 20", count: 1 }] }],
+        },
+      ],
       [{ seq: 1, runId: "run-user", blocks: [{ kind: "text", text: "Fourth-window answer" }] }],
     ];
     let windowIndex = 0;

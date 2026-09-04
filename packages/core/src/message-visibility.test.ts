@@ -33,14 +33,18 @@ const peerExchange = [
 ];
 
 describe("user-visible messages", () => {
-  it("keeps bot-to-bot exchanges out of the user transcript", () => {
-    expect(userVisibleMessages(peerExchange).map((item) => item.id)).toEqual(["user", "answer"]);
+  it("keeps a bot's final peer-work summary without exposing the peer exchange", () => {
+    expect(userVisibleMessages(peerExchange).map((item) => item.id)).toEqual([
+      "user",
+      "reply",
+      "answer",
+    ]);
   });
 
   it("keeps compact peer receipts when includePeerReceipts is set", () => {
     expect(
       userVisibleMessages(peerExchange, { includePeerReceipts: true }).map((item) => item.id),
-    ).toEqual(["user", "sent", "received", "answer"]);
+    ).toEqual(["user", "sent", "received", "reply", "answer"]);
   });
 
   it("uses authoritative peer run ids when the receipt is outside the loaded page", () => {
@@ -51,6 +55,6 @@ describe("user-visible messages", () => {
 
     expect(
       userVisibleMessages(messages, { knownPeerRunIds: ["run-peer"] }).map((item) => item.id),
-    ).toEqual(["answer"]);
+    ).toEqual(["reply", "answer"]);
   });
 });
