@@ -1,6 +1,6 @@
 import type { ThreadMessage } from "@rakazo/contracts";
 import { describe, expect, it } from "vitest";
-import { peerConversations, peerMessagesFrom } from "./peer-messages.js";
+import { hasPeerConversation, peerConversations, peerMessagesFrom } from "./peer-messages.js";
 
 function message(
   id: string,
@@ -90,5 +90,18 @@ describe("peer conversations", () => {
 
   it("finds nothing in a thread with no peer traffic", () => {
     expect(peerConversations([plainText])).toEqual([]);
+  });
+});
+
+describe("hasPeerConversation", () => {
+  it("is true when the selected peer appears in loaded pages", () => {
+    expect(hasPeerConversation([sentToAnalyst, replyFromAnalyst, plainText], "b_2")).toBe(true);
+  });
+
+  it("is false when loaded pages only contain other peers", () => {
+    const other = message("m_other", "2026-08-25T09:00:00.000Z", [
+      { kind: "bot_message_sent", toBotId: "b_9", toBotName: "Other", text: "hi" },
+    ]);
+    expect(hasPeerConversation([other], "b_2")).toBe(false);
   });
 });

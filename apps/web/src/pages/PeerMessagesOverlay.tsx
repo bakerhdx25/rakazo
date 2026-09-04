@@ -3,7 +3,7 @@ import { ChatMarkdown } from "@rakazo/chat-ui/web";
 import type { ThreadMessage } from "@rakazo/contracts";
 import { BotAvatar, Button, Dialog, DialogClose, DialogContent, DialogTitle } from "@rakazo/ui-web";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { peerConversations } from "../lib/peer-messages";
+import { hasPeerConversation, peerConversations } from "../lib/peer-messages";
 import { rpc } from "../lib/rpc";
 
 /**
@@ -74,7 +74,12 @@ export function PeerMessagesOverlay({
     })()
       .catch(() => {
         if (cancelled) return;
-        if (historyDeadlineReached && collected.length > 0) {
+        // Deadline with pages: show only if the selected peer is present; else Retry.
+        if (
+          historyDeadlineReached &&
+          collected.length > 0 &&
+          hasPeerConversation(collected, peerBotId)
+        ) {
           setMessages(collected);
         } else {
           setHistoryFailed(true);
@@ -87,7 +92,7 @@ export function PeerMessagesOverlay({
       window.clearTimeout(historyTimeout);
       lifecycleAbort.abort();
     };
-  }, [botId, reloadKey]);
+  }, [botId, peerBotId, reloadKey]);
 
   useLayoutEffect(() => {
     const element = transcriptRef.current;

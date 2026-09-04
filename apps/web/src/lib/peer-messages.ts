@@ -103,3 +103,11 @@ export function peerConversations(messages: readonly ThreadMessage[]): PeerConve
   }
   return [...byPeer.values()].sort((a, b) => b.lastAt.localeCompare(a.lastAt));
 }
+
+/** True when loaded history already includes the selected peer exchange. */
+export function hasPeerConversation(
+  messages: readonly ThreadMessage[],
+  peerBotId: string,
+): boolean {
+  return peerConversations(messages).some((entry) => entry.peerBotId === peerBotId);
+}
