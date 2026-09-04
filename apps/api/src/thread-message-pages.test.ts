@@ -142,6 +142,36 @@ describe("thread message pages", () => {
     expect(page.messages.map((message) => message.id)).toEqual(["message-user"]);
   });
 
+  it("projects mixed peer-run finals down to owner-facing text", async () => {
+    const findMany = vi.fn(async () => [
+      {
+        id: "message-peer",
+        threadId: "thread-1",
+        seq: 1,
+        role: "bot",
+        blocks: [
+          { kind: "steps", steps: [{ label: "Message bot", count: 1 }] },
+          { kind: "text", text: "Engineer finished the review." },
+        ],
+        botId: "bot-1",
+        replyToMessageId: null,
+        runId: "run-peer",
+        clientNonce: null,
+        createdAt: new Date("2026-08-16T00:00:01.000Z"),
+      },
+    ]);
+    const prisma = {
+      message: { findMany },
+      run: { findMany: vi.fn(async () => [{ id: "run-peer" }]) },
+    } as unknown as PrismaClient;
+
+    const page = await loadMessagePage(prisma, "thread-1", undefined, 2);
+
+    expect(page.messages[0]?.blocks).toEqual([
+      { kind: "text", text: "Engineer finished the review." },
+    ]);
+  });
+
   it("keeps a peer summary around-page target but omits peer activity", async () => {
     const findMany = vi.fn(async () => [
       {

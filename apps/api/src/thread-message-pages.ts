@@ -103,16 +103,26 @@ async function withoutPeerRunMessages<
     select: { id: true },
   });
   const peerRunIds = new Set(peerRuns.map((run) => run.id));
-  return rows.filter((row) => {
-    if (!row.runId || !peerRunIds.has(row.runId)) return true;
+  return rows.flatMap((row) => {
+    if (!row.runId || !peerRunIds.has(row.runId)) return [row];
     // Keep compact sent/received receipts and the bot's final summary for its
     // owner. Tool activity and the underlying peer exchange stay hidden.
     const blocks = row.blocks as MessageBlock[];
-    return (
+    if (
       blocks.some(
         (block) => block.kind === "bot_message_sent" || block.kind === "bot_message_received",
-      ) || isPeerSummaryMessage({ blocks, clientNonce: row.clientNonce })
+      )
+    ) {
+      return [row];
+    }
+    if (!isPeerSummaryMessage({ blocks, clientNonce: row.clientNonce })) return [];
+
+    // A terminal peer message can also contain steps/tool activity. Only the
+    // owner-facing text belongs in the normal transcript.
+    const summaryBlocks = blocks.filter(
+      (block) => block.kind === "text" && block.text.trim().length > 0,
     );
+    return [{ ...row, blocks: summaryBlocks as Prisma.JsonValue } as T];
   });
 }
 
