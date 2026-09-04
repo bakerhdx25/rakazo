@@ -41,8 +41,7 @@ export function PeerMessagesOverlay({
 
   useEffect(() => {
     let cancelled = false;
-    const abort = new AbortController();
-    const timeout = window.setTimeout(() => abort.abort(), 15_000);
+    const lifecycleAbort = new AbortController();
     setHistoryReady(false);
     setHistoryFailed(false);
     setMessages([]);
@@ -50,28 +49,31 @@ export function PeerMessagesOverlay({
       let before: number | undefined;
       let collected: ThreadMessage[] = [];
       do {
-        const page = await rpc.threads.messages(
-          { botId, before, includePeerRuns: true },
-          { signal: abort.signal },
-        );
+        const pageAbort = new AbortController();
+        const abortPage = () => pageAbort.abort();
+        lifecycleAbort.signal.addEventListener("abort", abortPage, { once: true });
+        const timeout = window.setTimeout(abortPage, 15_000);
+        const page = await rpc.threads
+          .messages({ botId, before, includePeerRuns: true }, { signal: pageAbort.signal })
+          .finally(() => {
+            window.clearTimeout(timeout);
+            lifecycleAbort.signal.removeEventListener("abort", abortPage);
+          });
         if (cancelled) return;
         collected = [...page.messages, ...collected];
         before = page.olderCursor ?? undefined;
       } while (before !== undefined);
       if (cancelled) return;
-      window.clearTimeout(timeout);
       setMessages(collected);
       setHistoryReady(true);
     })().catch(() => {
       if (cancelled) return;
-      window.clearTimeout(timeout);
       setHistoryFailed(true);
       setHistoryReady(true);
     });
     return () => {
       cancelled = true;
-      window.clearTimeout(timeout);
-      abort.abort();
+      lifecycleAbort.abort();
     };
   }, [botId, reloadKey]);
 

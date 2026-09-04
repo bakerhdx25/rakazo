@@ -1,5 +1,5 @@
 import type { MessageBlock, ThreadMessage, ThreadMessagePage } from "@rakazo/contracts";
-import { isPeerReceiptBlocks, isPeerSummaryBlocks } from "@rakazo/core";
+import { isPeerReceiptBlocks, isPeerSummaryMessage } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "@rakazo/db";
 
 type MessageDb = PrismaClient | Prisma.TransactionClient;
@@ -93,10 +93,9 @@ export async function loadAllMessages(
   return pages.reverse().flat();
 }
 
-async function withoutPeerRunMessages<T extends { runId: string | null; blocks: Prisma.JsonValue }>(
-  prisma: MessageDb,
-  rows: T[],
-): Promise<T[]> {
+async function withoutPeerRunMessages<
+  T extends { runId: string | null; clientNonce?: string | null; blocks: Prisma.JsonValue },
+>(prisma: MessageDb, rows: T[]): Promise<T[]> {
   const runIds = [...new Set(rows.flatMap((row) => (row.runId ? [row.runId] : [])))];
   if (runIds.length === 0) return rows;
   const peerRuns = await prisma.run.findMany({
@@ -112,7 +111,7 @@ async function withoutPeerRunMessages<T extends { runId: string | null; blocks: 
     return (
       blocks.some(
         (block) => block.kind === "bot_message_sent" || block.kind === "bot_message_received",
-      ) || isPeerSummaryBlocks(blocks)
+      ) || isPeerSummaryMessage({ blocks, clientNonce: row.clientNonce })
     );
   });
 }

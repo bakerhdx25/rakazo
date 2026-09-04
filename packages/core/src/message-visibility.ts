@@ -2,8 +2,15 @@ import type { MessageBlock } from "@rakazo/contracts";
 
 type PresentableMessage = {
   runId?: string;
+  clientNonce?: string | null;
   blocks: readonly MessageBlock[];
 };
+
+export const USER_PROGRESS_CLIENT_NONCE_PREFIX = "user-progress:";
+
+export function isUserProgressClientNonce(clientNonce: string | null | undefined): boolean {
+  return Boolean(clientNonce?.startsWith(USER_PROGRESS_CLIENT_NONCE_PREFIX));
+}
 
 export type UserVisibleMessagesOptions = {
   /**
@@ -21,9 +28,12 @@ export function isPeerReceiptBlocks(blocks: readonly MessageBlock[]): boolean {
   );
 }
 
-/** A bot's final summary after peer work, without the underlying peer transcript. */
-export function isPeerSummaryBlocks(blocks: readonly MessageBlock[]): boolean {
-  return blocks.some((block) => block.kind === "text" && block.text.trim().length > 0);
+/** A bot's terminal summary after peer work, without mid-turn narration. */
+export function isPeerSummaryMessage(message: PresentableMessage): boolean {
+  return (
+    !isUserProgressClientNonce(message.clientNonce) &&
+    message.blocks.some((block) => block.kind === "text" && block.text.trim().length > 0)
+  );
 }
 
 /** Drop peer-run activity; keep final summaries and optionally compact receipt rows. */
@@ -42,6 +52,6 @@ export function userVisibleMessages<T extends PresentableMessage>(
   return messages.filter((message) => {
     if (isPeerReceiptBlocks(message.blocks)) return includePeerReceipts;
     if (!message.runId || !peerRunIds.has(message.runId)) return true;
-    return isPeerSummaryBlocks(message.blocks);
+    return isPeerSummaryMessage(message);
   });
 }

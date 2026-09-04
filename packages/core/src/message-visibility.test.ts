@@ -57,4 +57,15 @@ describe("user-visible messages", () => {
       userVisibleMessages(messages, { knownPeerRunIds: ["run-peer"] }).map((item) => item.id),
     ).toEqual(["reply", "answer"]);
   });
+
+  it("keeps mid-turn peer narration hidden", () => {
+    const progress = {
+      ...message("progress", "run-peer", [{ kind: "text" as const, text: "Still checking." }]),
+      clientNonce: "user-progress:run-peer:0:test",
+    };
+
+    expect(
+      userVisibleMessages([progress], { knownPeerRunIds: ["run-peer"] }).map((item) => item.id),
+    ).toEqual([]);
+  });
 });
