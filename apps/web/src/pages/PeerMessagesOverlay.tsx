@@ -42,6 +42,7 @@ export function PeerMessagesOverlay({
   useEffect(() => {
     let cancelled = false;
     const lifecycleAbort = new AbortController();
+    const historyTimeout = window.setTimeout(() => lifecycleAbort.abort(), 60_000);
     setHistoryReady(false);
     setHistoryFailed(false);
     setMessages([]);
@@ -66,13 +67,16 @@ export function PeerMessagesOverlay({
       if (cancelled) return;
       setMessages(collected);
       setHistoryReady(true);
-    })().catch(() => {
-      if (cancelled) return;
-      setHistoryFailed(true);
-      setHistoryReady(true);
-    });
+    })()
+      .catch(() => {
+        if (cancelled) return;
+        setHistoryFailed(true);
+        setHistoryReady(true);
+      })
+      .finally(() => window.clearTimeout(historyTimeout));
     return () => {
       cancelled = true;
+      window.clearTimeout(historyTimeout);
       lifecycleAbort.abort();
     };
   }, [botId, reloadKey]);
