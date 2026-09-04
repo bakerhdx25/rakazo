@@ -41,14 +41,18 @@ export function PeerMessagesOverlay({
 
   useEffect(() => {
     let cancelled = false;
+    let historyDeadlineReached = false;
+    let collected: ThreadMessage[] = [];
     const lifecycleAbort = new AbortController();
-    const historyTimeout = window.setTimeout(() => lifecycleAbort.abort(), 60_000);
+    const historyTimeout = window.setTimeout(() => {
+      historyDeadlineReached = true;
+      lifecycleAbort.abort();
+    }, 60_000);
     setHistoryReady(false);
     setHistoryFailed(false);
     setMessages([]);
     void (async () => {
       let before: number | undefined;
-      let collected: ThreadMessage[] = [];
       do {
         const pageAbort = new AbortController();
         const abortPage = () => pageAbort.abort();
@@ -70,7 +74,11 @@ export function PeerMessagesOverlay({
     })()
       .catch(() => {
         if (cancelled) return;
-        setHistoryFailed(true);
+        if (historyDeadlineReached && collected.length > 0) {
+          setMessages(collected);
+        } else {
+          setHistoryFailed(true);
+        }
         setHistoryReady(true);
       })
       .finally(() => window.clearTimeout(historyTimeout));
