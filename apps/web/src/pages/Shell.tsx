@@ -338,6 +338,7 @@ export function ShellPage() {
   const [peerConversation, setPeerConversation] = useState<{
     peerBotId: string;
     peerBotName: string;
+    messageId: string;
   } | null>(null);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routinesBotId, setRoutinesBotId] = useState<string | null>(null);
@@ -3914,6 +3915,7 @@ export function ShellPage() {
             botColor={active.color}
             peerBotId={peerConversation.peerBotId}
             peerBotName={peerConversation.peerBotName}
+            anchorMessageId={peerConversation.messageId}
             peerBotColor={
               resolveTranscriptBot(peerConversation.peerBotId)?.color ?? FALLBACK_BOT_COLOR
             }
@@ -4147,7 +4149,7 @@ const Transcript = memo(function Transcript({
   onReply: (message: ThreadMessage) => void;
   onReact: (message: ThreadMessage) => Promise<void>;
   onJumpToMessage: (messageId: string) => void;
-  onOpenPeerMessages: (peer: { peerBotId: string; peerBotName: string }) => void;
+  onOpenPeerMessages: (peer: { peerBotId: string; peerBotName: string; messageId: string }) => void;
   memberName?: (botId: string | undefined) => string | undefined;
   peerBot: (botId: string) => { color: string; status?: string } | undefined;
   onRefresh: () => Promise<void>;
@@ -5242,7 +5244,7 @@ const MessageView = memo(function MessageView({
   message: ThreadMessage;
   onAnswer: (message: ThreadMessage, text: string) => Promise<void>;
   onOpenBot: (botId: string) => void;
-  onOpenPeerMessages: (peer: { peerBotId: string; peerBotName: string }) => void;
+  onOpenPeerMessages: (peer: { peerBotId: string; peerBotName: string; messageId: string }) => void;
   speakerName?: string;
   memberName?: (botId: string | undefined) => string | undefined;
   peerBot: (botId: string) => { color: string; status?: string } | undefined;
@@ -5354,7 +5356,9 @@ const MessageView = memo(function MessageView({
               color={peerBot(peerBotId)?.color ?? FALLBACK_BOT_COLOR}
               identity={peerBotId}
               label={label}
-              onClick={() => onOpenPeerMessages({ peerBotId, peerBotName: peer })}
+              onClick={() =>
+                onOpenPeerMessages({ peerBotId, peerBotName: peer, messageId: message.id })
+              }
             />
           );
         }

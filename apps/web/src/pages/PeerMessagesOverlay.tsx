@@ -17,6 +17,7 @@ export function PeerMessagesOverlay({
   peerBotId,
   peerBotName: initialPeerBotName,
   peerBotColor,
+  anchorMessageId,
   onClose,
 }: {
   botId: string;
@@ -25,6 +26,7 @@ export function PeerMessagesOverlay({
   peerBotId: string;
   peerBotName: string;
   peerBotColor: string;
+  anchorMessageId: string;
   onClose: () => void;
 }) {
   const { t } = useLingui();
@@ -52,20 +54,32 @@ export function PeerMessagesOverlay({
     setHistoryFailed(false);
     setMessages([]);
     void (async () => {
-      let before: number | undefined;
-      do {
+      const loadPage = async (target: { before?: number; around?: { messageId: string } }) => {
         const pageAbort = new AbortController();
         const abortPage = () => pageAbort.abort();
         lifecycleAbort.signal.addEventListener("abort", abortPage, { once: true });
         const timeout = window.setTimeout(abortPage, 15_000);
-        const page = await rpc.threads
-          .messages({ botId, before, includePeerRuns: true }, { signal: pageAbort.signal })
+        return rpc.threads
+          .messages({ botId, ...target, includePeerRuns: true }, { signal: pageAbort.signal })
           .finally(() => {
             window.clearTimeout(timeout);
             lifecycleAbort.signal.removeEventListener("abort", abortPage);
           });
+      };
+
+      // Seed the transcript around the receipt the user clicked. Even when a
+      // very large history hits the total deadline, the selected exchange is
+      // therefore present in the partial transcript we render.
+      const anchorPage = await loadPage({ around: { messageId: anchorMessageId } });
+      collected = [...anchorPage.messages];
+
+      let before: number | undefined;
+      do {
+        const page = await loadPage(before === undefined ? {} : { before });
         if (cancelled) return;
-        collected = [...page.messages, ...collected];
+        const merged = new Map(collected.map((message) => [message.id, message]));
+        for (const message of page.messages) merged.set(message.id, message);
+        collected = [...merged.values()].sort((a, b) => a.seq - b.seq);
         before = page.olderCursor ?? undefined;
       } while (before !== undefined);
       if (cancelled) return;
@@ -92,7 +106,7 @@ export function PeerMessagesOverlay({
       window.clearTimeout(historyTimeout);
       lifecycleAbort.abort();
     };
-  }, [botId, peerBotId, reloadKey]);
+  }, [anchorMessageId, botId, peerBotId, reloadKey]);
 
   useLayoutEffect(() => {
     const element = transcriptRef.current;
