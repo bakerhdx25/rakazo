@@ -1750,22 +1750,31 @@ export function ShellPage() {
   jumpToMessageRef.current = jumpToMessage;
 
   useEffect(() => {
+    let activeRefresh: AbortController | undefined;
     const refreshActiveTranscript = () => {
       if (document.visibilityState !== "visible") return;
+      activeRefresh?.abort();
+      const controller = new AbortController();
+      activeRefresh = controller;
       const currentGroupId = activeGroupId.current;
       if (currentGroupId) {
-        void refreshGroupThreadRef.current(currentGroupId).catch(() => undefined);
+        void refreshGroupThreadRef
+          .current(currentGroupId, threadSnapshotSignal(controller.signal))
+          .catch(() => undefined);
         return;
       }
       const currentBotId = activeBotId.current;
       if (currentBotId) {
-        void refreshThreadRef.current(currentBotId).catch(() => undefined);
+        void refreshThreadRef
+          .current(currentBotId, threadSnapshotSignal(controller.signal))
+          .catch(() => undefined);
       }
     };
     window.addEventListener("focus", refreshActiveTranscript);
     window.addEventListener("online", refreshActiveTranscript);
     document.addEventListener("visibilitychange", refreshActiveTranscript);
     return () => {
+      activeRefresh?.abort();
       window.removeEventListener("focus", refreshActiveTranscript);
       window.removeEventListener("online", refreshActiveTranscript);
       document.removeEventListener("visibilitychange", refreshActiveTranscript);
