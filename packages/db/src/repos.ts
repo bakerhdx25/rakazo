@@ -206,8 +206,8 @@ export function createRepos(prisma: PrismaClient) {
           select: { id: true, sourceMessage: { select: { blocks: true } } },
         })
       : [];
-    const peerRunIds = new Set(peerRuns.map((run) => run.id));
-    const peerReportRunIds = new Set(
+    const peerRunIds = new Set<string>(peerRuns.map((run) => run.id));
+    const peerReportRunIds = new Set<string>(
       peerRuns
         .filter((run) =>
           isPeerReportBlocks(
@@ -353,8 +353,8 @@ export function createRepos(prisma: PrismaClient) {
             select: { id: true, sourceMessage: { select: { blocks: true } } },
           })
         : [];
-      const peerRunIds = new Set(peerRuns.map((run) => run.id));
-      const peerReportRunIds = new Set(
+      const peerRunIds = new Set<string>(peerRuns.map((run) => run.id));
+      const peerReportRunIds = new Set<string>(
         peerRuns
           .filter((run) =>
             isPeerReportBlocks(
