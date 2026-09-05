@@ -482,6 +482,51 @@ describe("createRepos.listSpaceBotsForSpaces", () => {
       expect.objectContaining({ preview: "Older visible answer" }),
     ]);
   });
+
+  it("shows assigned worker takeover requests in cross-space sidebar previews", async () => {
+    const botFindMany = vi.fn(async () => [
+      {
+        id: "bot-2",
+        spaceId: "ws-2",
+        name: "Support",
+        title: "Customer support",
+        color: "#123456",
+        notifyOnFinish: false,
+        pinned: true,
+        sectionId: null,
+        updatedAt: new Date("2026-08-20T00:00:00.000Z"),
+        thread: {
+          unread: true,
+          messages: [
+            {
+              seq: 2,
+              runId: "run-peer",
+              clientNonce: null,
+              blocks: [
+                {
+                  kind: "computer",
+                  state: "Ready",
+                  text: "Please complete the staging login.",
+                },
+              ],
+            },
+          ],
+        },
+        runs: [{ status: "waiting_takeover" }],
+      },
+    ]);
+    const repos = createRepos({
+      bot: { findMany: botFindMany },
+      run: { findMany: vi.fn(async () => [peerRun("request")]) },
+    } as unknown as PrismaClient);
+
+    await expect(repos.listSpaceBotsForSpaces(actor, ["ws-2"])).resolves.toEqual([
+      expect.objectContaining({
+        preview: "Please complete the staging login.",
+        status: "waiting_takeover",
+      }),
+    ]);
+  });
 });
 
 describe("createRepos.reorderBots", () => {

@@ -59,6 +59,26 @@ describe("user-visible messages", () => {
     expect(userVisibleMessages(workerExchange).map((item) => item.id)).toEqual([]);
   });
 
+  it("keeps an assigned worker's takeover request visible", () => {
+    const workerExchange = [
+      message("received", "run-worker", [
+        {
+          kind: "bot_message_received",
+          fromBotId: "coordinator",
+          fromBotName: "Coordinator",
+          text: "Check staging.",
+          intent: "request",
+        },
+      ]),
+      message("takeover", "run-worker", [
+        { kind: "computer", state: "Ready", text: "Please complete the staging login." },
+      ]),
+      message("reply", "run-worker", [{ kind: "text", text: "Waiting for login." }]),
+    ];
+
+    expect(userVisibleMessages(workerExchange).map((item) => item.id)).toEqual(["takeover"]);
+  });
+
   it("keeps compact peer receipts when includePeerReceipts is set", () => {
     expect(
       userVisibleMessages(peerExchange, { includePeerReceipts: true }).map((item) => item.id),

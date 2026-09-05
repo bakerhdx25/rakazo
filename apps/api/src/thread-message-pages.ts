@@ -1,8 +1,36 @@
 import type { MessageBlock, ThreadMessage, ThreadMessagePage } from "@rakazo/contracts";
-import { isPeerReceiptBlocks, isPeerReportBlocks, terminalPeerSummaryIndexes } from "@rakazo/core";
+import {
+  isPeerReceiptBlocks,
+  isPeerReportBlocks,
+  isTakeoverRequestBlocks,
+  terminalPeerSummaryIndexes,
+} from "@rakazo/core";
 import type { Prisma, PrismaClient } from "@rakazo/db";
 
 type MessageDb = PrismaClient | Prisma.TransactionClient;
+
+export function isUserVisiblePeerRunEvent(event: {
+  type: string;
+  payload: { blocks?: unknown };
+}): boolean {
+  if (
+    event.type === "run.completed" ||
+    event.type === "run.failed" ||
+    event.type === "run.cancelled" ||
+    event.type === "computer.takeover.requested"
+  ) {
+    return true;
+  }
+  if (event.type !== "thread.message.created" && event.type !== "thread.message.updated") {
+    return false;
+  }
+  const blocks = event.payload.blocks;
+  if (!Array.isArray(blocks)) return false;
+  return (
+    isPeerReceiptBlocks(blocks as MessageBlock[]) ||
+    isTakeoverRequestBlocks(blocks as MessageBlock[])
+  );
+}
 
 export async function loadMessagePage(
   prisma: MessageDb,
@@ -149,6 +177,7 @@ async function withoutPeerRunMessages<
     // result/status/fyi may publish a final report to the user; a worker woken
     // by a request/question remains private to the peer exchange.
     const blocks = row.blocks as MessageBlock[];
+    if (isTakeoverRequestBlocks(blocks)) return [row];
     if (
       blocks.some(
         (block) => block.kind === "bot_message_sent" || block.kind === "bot_message_received",

@@ -32,6 +32,11 @@ export function isPeerReceiptBlocks(blocks: readonly MessageBlock[]): boolean {
   );
 }
 
+/** A computer card requires the owner to take over and must never be hidden. */
+export function isTakeoverRequestBlocks(blocks: readonly MessageBlock[]): boolean {
+  return blocks.some((block) => block.kind === "computer");
+}
+
 /** A peer wake that reports information back, rather than assigning hidden work. */
 export function isPeerReportBlocks(blocks: readonly MessageBlock[]): boolean {
   return blocks.some(
@@ -110,6 +115,7 @@ export function userVisibleMessages<T extends PresentableMessage>(
   const terminalSummaryIndexes = terminalPeerSummaryIndexes(messages, peerReportRunIds);
 
   return messages.filter((message, index) => {
+    if (isTakeoverRequestBlocks(message.blocks)) return true;
     if (isPeerReceiptBlocks(message.blocks)) return includePeerReceipts;
     if (!message.runId || !peerRunIds.has(message.runId)) return true;
     return peerReportRunIds.has(message.runId) && terminalSummaryIndexes.has(index);
