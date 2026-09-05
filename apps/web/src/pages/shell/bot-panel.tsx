@@ -10,6 +10,7 @@ import type {
   VoiceInfo,
 } from "@rakazo/contracts";
 import {
+  BOT_COLORS,
   BOT_DESCRIPTION_MAX_LENGTH,
   BOT_NAME_MAX_LENGTH,
   BOT_TITLE_MAX_LENGTH,
@@ -183,6 +184,7 @@ export function BotSettings({
     title?: string;
     description?: string;
     instructions?: string;
+    color?: string;
     computerMode: ComputerMode;
     memoryScope?: "isolated" | "shared" | null;
     autoSpeak?: boolean;
@@ -199,6 +201,7 @@ export function BotSettings({
   const [name, setName] = useState(bot.name);
   const [title, setTitle] = useState(bot.title);
   const [description, setDescription] = useState(bot.description);
+  const [color, setColor] = useState(bot.color);
   const [computerMode, setComputerMode] = useState(bot.computerMode);
   const [memoryScope, setMemoryScope] = useState(bot.memoryScope);
   const [autoSpeak, setAutoSpeak] = useState(bot.autoSpeak);
@@ -287,7 +290,7 @@ export function BotSettings({
   return (
     <div data-testid="bot-settings">
       <div className="flex justify-center">
-        <BotAvatar color={bot.color} identity={bot.id} size={64} status={bot.status} />
+        <BotAvatar color={color} identity={bot.id} size={64} status={bot.status} />
       </div>
       <label htmlFor={`${ids}-name`} className="mt-6 block text-[14px] text-muted-foreground">
         <Trans>Name</Trans>
@@ -320,6 +323,31 @@ export function BotSettings({
           className="mt-2"
         />
       </label>
+      <div className={fieldLabelClass}>
+        <Trans>Color</Trans>
+        <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label={t`Color`}>
+          {BOT_COLORS.map((option, index) => (
+            <label key={option} className="cursor-pointer rounded-full">
+              <input
+                className="peer sr-only"
+                type="radio"
+                name={`${ids}-color`}
+                value={option}
+                checked={color === option}
+                aria-label={t`Color ${index + 1}`}
+                onChange={() => setColor(option)}
+              />
+              <span
+                aria-hidden="true"
+                className={`block size-8 rounded-full border-2 ring-offset-card transition-transform hover:scale-105 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 ${
+                  color === option ? "border-foreground" : "border-transparent"
+                }`}
+                style={{ backgroundColor: option }}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
       <details data-testid="bot-settings-advanced" className="group mt-5">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[14px] text-muted-foreground">
           <span className="text-muted-foreground">
@@ -456,6 +484,7 @@ export function BotSettings({
               title: nextTitle,
               description: nextDescription,
               instructions: nextDescription,
+              color,
               computerMode,
               memoryScope,
               autoSpeak,
