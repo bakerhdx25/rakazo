@@ -67,6 +67,41 @@ describe("peer conversations", () => {
     ]);
   });
 
+  it("does not duplicate a generated reply that was explicitly sent to the same peer", () => {
+    const received = message(
+      "m_4",
+      "2026-08-25T10:03:00.000Z",
+      [
+        {
+          kind: "bot_message_received",
+          fromBotId: "b_2",
+          fromBotName: "Analyst",
+          text: "status?",
+        },
+      ],
+      { role: "user", runId: "run-peer" },
+    );
+    const generatedReply = message(
+      "m_5",
+      "2026-08-25T10:04:00.000Z",
+      [{ kind: "text", text: "NO-SHIP" }],
+      { role: "bot", runId: "run-peer" },
+    );
+    const sentReceipt = message(
+      "m_6",
+      "2026-08-25T10:04:00.018Z",
+      [{ kind: "bot_message_sent", toBotId: "b_2", toBotName: "Analyst", text: "NO-SHIP" }],
+      { role: "bot", runId: "run-peer" },
+    );
+
+    const peerMessages = peerMessagesFrom([received, generatedReply, sentReceipt]);
+
+    expect(peerMessages).toHaveLength(2);
+    expect(peerMessages.filter((entry) => entry.text === "NO-SHIP")).toEqual([
+      expect.objectContaining({ messageId: "m_6", direction: "sent" }),
+    ]);
+  });
+
   it("does not attribute ordinary bot text to a peer conversation", () => {
     const generatedReply = message(
       "m_5",

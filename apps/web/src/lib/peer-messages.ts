@@ -23,9 +23,25 @@ export function isPeerBlock(block: MessageBlock): block is PeerBlock {
   return block.kind === "bot_message_sent" || block.kind === "bot_message_received";
 }
 
+function sentReplyKey(runId: string, peerBotId: string, text: string): string {
+  return `${runId}\0${peerBotId}\0${text.trim()}`;
+}
+
 export function peerMessagesFrom(messages: readonly ThreadMessage[]): PeerMessage[] {
   const collected: PeerMessage[] = [];
   const receivedPeerByRun = new Map<string, { id: string; name: string }>();
+  const explicitSentReplies = new Set<string>();
+
+  // The explicit sent receipt can be published after the run's final text, so
+  // index the full history before deciding whether a generated reply is needed.
+  for (const message of messages) {
+    if (!message.runId) continue;
+    for (const block of message.blocks) {
+      if (block.kind !== "bot_message_sent") continue;
+      explicitSentReplies.add(sentReplyKey(message.runId, block.toBotId, block.text));
+    }
+  }
+
   for (const message of messages) {
     for (const block of message.blocks) {
       if (!isPeerBlock(block)) continue;
@@ -65,7 +81,9 @@ export function peerMessagesFrom(messages: readonly ThreadMessage[]): PeerMessag
         .flatMap((block) => (block.kind === "text" ? [block.text] : []))
         .join("\n\n")
         .trim();
-      if (text) {
+      const alreadySent =
+        message.runId && explicitSentReplies.has(sentReplyKey(message.runId, replyPeer.id, text));
+      if (text && !alreadySent) {
         collected.push({
           messageId: message.id,
           direction: "sent",
