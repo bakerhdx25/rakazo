@@ -311,7 +311,11 @@ describe("createRepos.listSpaceBotsForSpaces", () => {
         runs: [{ status: "running" }],
       },
     ]);
-    const repos = createRepos({ bot: { findMany } } as unknown as PrismaClient);
+    const runFindMany = vi.fn(async () => []);
+    const repos = createRepos({
+      bot: { findMany },
+      run: { findMany: runFindMany },
+    } as unknown as PrismaClient);
 
     await expect(repos.listSpaceBotsForSpaces(actor, ["ws-2"])).resolves.toEqual([
       {
@@ -336,6 +340,46 @@ describe("createRepos.listSpaceBotsForSpaces", () => {
     expect(query.select).not.toHaveProperty("description");
     expect(query.select).not.toHaveProperty("instructions");
     expect(query.select).not.toHaveProperty("computer");
+  });
+
+  it("keeps assigned worker replies out of cross-space sidebar previews", async () => {
+    const botFindMany = vi.fn(async () => [
+      {
+        id: "bot-2",
+        spaceId: "ws-2",
+        name: "Support",
+        title: "Customer support",
+        color: "#123456",
+        notifyOnFinish: false,
+        pinned: true,
+        sectionId: null,
+        updatedAt: new Date("2026-08-20T00:00:00.000Z"),
+        thread: {
+          unread: true,
+          messages: [
+            {
+              runId: "run-peer",
+              clientNonce: null,
+              blocks: [{ kind: "text", text: "Private worker result" }],
+            },
+            {
+              runId: "run-user",
+              clientNonce: null,
+              blocks: [{ kind: "text", text: "Older visible answer" }],
+            },
+          ],
+        },
+        runs: [],
+      },
+    ]);
+    const repos = createRepos({
+      bot: { findMany: botFindMany },
+      run: { findMany: vi.fn(async () => [peerRun("request")]) },
+    } as unknown as PrismaClient);
+
+    await expect(repos.listSpaceBotsForSpaces(actor, ["ws-2"])).resolves.toEqual([
+      expect.objectContaining({ preview: "Older visible answer" }),
+    ]);
   });
 });
 

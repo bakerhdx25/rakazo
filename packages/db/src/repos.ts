@@ -121,8 +121,8 @@ export function createRepos(prisma: PrismaClient) {
             unread: true,
             messages: {
               orderBy: { seq: "desc" },
-              take: 1,
-              select: { blocks: true },
+              take: SIDEBAR_PREVIEW_MESSAGE_WINDOW,
+              select: { blocks: true, runId: true, clientNonce: true },
             },
           },
         },
@@ -130,8 +130,41 @@ export function createRepos(prisma: PrismaClient) {
       },
       orderBy: [{ pinned: "desc" }, { position: "asc" }, { createdAt: "asc" }],
     });
+    const candidateRunIds = [
+      ...new Set(
+        bots.flatMap((bot) =>
+          (bot.thread?.messages ?? []).flatMap((message) => (message.runId ? [message.runId] : [])),
+        ),
+      ),
+    ];
+    const peerRuns = candidateRunIds.length
+      ? await prisma.run.findMany({
+          where: { id: { in: candidateRunIds }, trigger: "bot_message" },
+          select: { id: true, sourceMessage: { select: { blocks: true } } },
+        })
+      : [];
+    const peerRunIds = new Set(peerRuns.map((run) => run.id));
+    const peerReportRunIds = new Set(
+      peerRuns
+        .filter((run) =>
+          isPeerReportBlocks(
+            Array.isArray(run.sourceMessage?.blocks)
+              ? (run.sourceMessage.blocks as MessageBlock[])
+              : [],
+          ),
+        )
+        .map((run) => run.id),
+    );
     return bots.map((bot) => {
       if (!bot.thread) throw new IsolationError("Bot is missing its thread");
+      const visibleMessages = userVisibleMessages(
+        bot.thread.messages.map((message) => ({
+          ...message,
+          blocks: message.blocks as MessageBlock[],
+          runId: message.runId ?? undefined,
+        })),
+        { knownPeerRunIds: peerRunIds, knownPeerReportRunIds: peerReportRunIds },
+      );
       return {
         id: bot.id,
         spaceId: bot.spaceId,
@@ -142,7 +175,7 @@ export function createRepos(prisma: PrismaClient) {
         pinned: bot.pinned,
         sectionId: bot.sectionId,
         unread: bot.thread.unread,
-        preview: previewFromBlocks(bot.thread.messages[0]?.blocks),
+        preview: previewFromBlocks(visibleMessages[0]?.blocks),
         status: bot.runs[0]?.status ?? "idle",
         updatedAt: bot.updatedAt.toISOString(),
       };
