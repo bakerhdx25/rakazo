@@ -2,6 +2,23 @@ import type { PrismaClient } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import { isPeerRun, loadAllMessages, loadMessagePage } from "./thread-message-pages.js";
 
+function peerRun(intent: "request" | "result" = "result") {
+  return {
+    id: "run-peer",
+    sourceMessage: {
+      blocks: [
+        {
+          kind: "bot_message_received",
+          fromBotId: "bot-2",
+          fromBotName: "Coder",
+          text: intent === "request" ? "Check this." : "Done.",
+          intent,
+        },
+      ],
+    },
+  };
+}
+
 describe("thread message pages", () => {
   it("caches peer-run classification for live events", async () => {
     const findUnique = vi.fn(async () => ({ trigger: "bot_message" }));
@@ -58,7 +75,7 @@ describe("thread message pages", () => {
     ]);
     const prisma = {
       message: { findMany },
-      run: { findMany: vi.fn(async () => [{ id: "run-peer" }]) },
+      run: { findMany: vi.fn(async () => [peerRun()]) },
     } as unknown as PrismaClient;
 
     const page = await loadMessagePage(prisma, "thread-1", undefined, 3);
@@ -97,12 +114,47 @@ describe("thread message pages", () => {
     ]);
     const prisma = {
       message: { findMany },
-      run: { findMany: vi.fn(async () => [{ id: "run-peer" }]) },
+      run: { findMany: vi.fn(async () => [peerRun()]) },
     } as unknown as PrismaClient;
 
     const page = await loadMessagePage(prisma, "thread-1", undefined, 2);
 
     expect(page.messages.map((message) => message.id)).toEqual(["message-user", "message-peer"]);
+  });
+
+  it("hides an assigned worker's final reply from the normal transcript", async () => {
+    const findMany = vi.fn(async () => [
+      {
+        id: "message-worker-reply",
+        threadId: "thread-1",
+        seq: 2,
+        role: "bot",
+        blocks: [{ kind: "text", text: "The check passed." }],
+        botId: "bot-worker",
+        replyToMessageId: null,
+        runId: "run-peer",
+        createdAt: new Date("2026-08-16T00:00:02.000Z"),
+      },
+      {
+        id: "message-user",
+        threadId: "thread-1",
+        seq: 1,
+        role: "bot",
+        blocks: [{ kind: "text", text: "Older visible answer" }],
+        botId: "bot-worker",
+        replyToMessageId: null,
+        runId: "run-user",
+        createdAt: new Date("2026-08-16T00:00:01.000Z"),
+      },
+    ]);
+    const prisma = {
+      message: { findMany },
+      run: { findMany: vi.fn(async () => [peerRun("request")]) },
+    } as unknown as PrismaClient;
+
+    const page = await loadMessagePage(prisma, "thread-1", undefined, 2);
+
+    expect(page.messages.map((message) => message.id)).toEqual(["message-user"]);
   });
 
   it("filters mid-turn peer narration identified by its durable nonce", async () => {
@@ -134,7 +186,7 @@ describe("thread message pages", () => {
     ]);
     const prisma = {
       message: { findMany },
-      run: { findMany: vi.fn(async () => [{ id: "run-peer" }]) },
+      run: { findMany: vi.fn(async () => [peerRun()]) },
     } as unknown as PrismaClient;
 
     const page = await loadMessagePage(prisma, "thread-1", undefined, 2);
@@ -162,7 +214,7 @@ describe("thread message pages", () => {
     ]);
     const prisma = {
       message: { findMany },
-      run: { findMany: vi.fn(async () => [{ id: "run-peer" }]) },
+      run: { findMany: vi.fn(async () => [peerRun()]) },
     } as unknown as PrismaClient;
 
     const page = await loadMessagePage(prisma, "thread-1", undefined, 2);
@@ -209,7 +261,7 @@ describe("thread message pages", () => {
       },
     ]);
     const count = vi.fn(async () => 1);
-    const runFindMany = vi.fn(async () => [{ id: "run-peer" }]);
+    const runFindMany = vi.fn(async () => [peerRun()]);
     const prisma = {
       message: { findMany, count },
       run: { findMany: runFindMany },
@@ -273,7 +325,7 @@ describe("thread message pages", () => {
     const count = vi.fn(async () => 0);
     const prisma = {
       message: { findMany, count },
-      run: { findMany: vi.fn(async () => [{ id: "run-peer" }]) },
+      run: { findMany: vi.fn(async () => [peerRun()]) },
     } as unknown as PrismaClient;
 
     const page = await loadMessagePage(prisma, "thread-1", undefined, 4, {

@@ -20,11 +20,22 @@ export type UserVisibleMessagesOptions = {
   includePeerReceipts?: boolean;
   /** Peer-run ids from `run.trigger === "bot_message"` when receipts may be out of window. */
   knownPeerRunIds?: Iterable<string>;
+  /** Peer-run ids woken by a result/status/fyi that should report to the user. */
+  knownPeerReportRunIds?: Iterable<string>;
 };
 
 export function isPeerReceiptBlocks(blocks: readonly MessageBlock[]): boolean {
   return blocks.some(
     (block) => block.kind === "bot_message_sent" || block.kind === "bot_message_received",
+  );
+}
+
+/** A peer wake that reports information back, rather than assigning hidden work. */
+export function isPeerReportBlocks(blocks: readonly MessageBlock[]): boolean {
+  return blocks.some(
+    (block) =>
+      block.kind === "bot_message_received" &&
+      (block.intent === "result" || block.intent === "status" || block.intent === "fyi"),
   );
 }
 
@@ -48,10 +59,16 @@ export function userVisibleMessages<T extends PresentableMessage>(
       .flatMap((message) => (message.runId ? [message.runId] : [])),
   ]);
   const includePeerReceipts = options.includePeerReceipts === true;
+  const peerReportRunIds = new Set([
+    ...(options.knownPeerReportRunIds ?? []),
+    ...messages
+      .filter((message) => isPeerReportBlocks(message.blocks))
+      .flatMap((message) => (message.runId ? [message.runId] : [])),
+  ]);
 
   return messages.filter((message) => {
     if (isPeerReceiptBlocks(message.blocks)) return includePeerReceipts;
     if (!message.runId || !peerRunIds.has(message.runId)) return true;
-    return isPeerSummaryMessage(message);
+    return peerReportRunIds.has(message.runId) && isPeerSummaryMessage(message);
   });
 }

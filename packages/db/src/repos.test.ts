@@ -46,6 +46,23 @@ function reposFor(memoryScope: string | null) {
   return createRepos(prisma as unknown as PrismaClient);
 }
 
+function peerRun(intent: "request" | "result" = "result") {
+  return {
+    id: "run-peer",
+    sourceMessage: {
+      blocks: [
+        {
+          kind: "bot_message_received",
+          fromBotId: "bot-2",
+          fromBotName: "Coder",
+          text: intent === "request" ? "Check this." : "Done.",
+          intent,
+        },
+      ],
+    },
+  };
+}
+
 describe("createRepos.listBots", () => {
   it("passes memoryScope through as null when unset", async () => {
     await expect(reposFor(null).listBots(actor)).resolves.toEqual([
@@ -91,7 +108,7 @@ describe("createRepos.listBots", () => {
         findMany,
       },
       run: {
-        findMany: vi.fn(async () => [{ id: "run-peer" }]),
+        findMany: vi.fn(async () => [peerRun()]),
       },
     };
 
@@ -131,7 +148,7 @@ describe("createRepos.listBots", () => {
         ]),
       },
       run: {
-        findMany: vi.fn(async () => [{ id: "run-peer" }]),
+        findMany: vi.fn(async () => [peerRun()]),
       },
       message: {
         findMany: vi.fn(async () => []),
@@ -140,6 +157,33 @@ describe("createRepos.listBots", () => {
 
     await expect(createRepos(prisma as unknown as PrismaClient).listBots(actor)).resolves.toEqual([
       expect.objectContaining({ preview: "Echoed peer reply" }),
+    ]);
+  });
+
+  it("keeps an assigned worker's reply out of sidebar previews", async () => {
+    const prisma = {
+      bot: {
+        findMany: vi.fn(async () => [
+          {
+            ...baseBot,
+            thread: {
+              ...baseBot.thread,
+              messages: [
+                {
+                  runId: "run-peer",
+                  blocks: [{ kind: "text", text: "The check passed." }],
+                },
+                { runId: "run-user", blocks: [{ kind: "text", text: "Older visible answer" }] },
+              ],
+            },
+          },
+        ]),
+      },
+      run: { findMany: vi.fn(async () => [peerRun("request")]) },
+    };
+
+    await expect(createRepos(prisma as unknown as PrismaClient).listBots(actor)).resolves.toEqual([
+      expect.objectContaining({ preview: "Older visible answer" }),
     ]);
   });
 

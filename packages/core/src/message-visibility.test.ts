@@ -25,6 +25,7 @@ const peerExchange = [
       fromBotId: "coder",
       fromBotName: "Coder",
       text: "Done.",
+      intent: "result",
     },
   ]),
   message("activity", "run-peer", [{ kind: "steps", steps: [{ label: "Message bot", count: 1 }] }]),
@@ -41,6 +42,23 @@ describe("user-visible messages", () => {
     ]);
   });
 
+  it("keeps an assigned worker's reply out of the user transcript", () => {
+    const workerExchange = [
+      message("received", "run-worker", [
+        {
+          kind: "bot_message_received" as const,
+          fromBotId: "coordinator",
+          fromBotName: "Coordinator",
+          text: "Check this.",
+          intent: "request" as const,
+        },
+      ]),
+      message("reply", "run-worker", [{ kind: "text", text: "The check passed." }]),
+    ];
+
+    expect(userVisibleMessages(workerExchange).map((item) => item.id)).toEqual([]);
+  });
+
   it("keeps compact peer receipts when includePeerReceipts is set", () => {
     expect(
       userVisibleMessages(peerExchange, { includePeerReceipts: true }).map((item) => item.id),
@@ -54,7 +72,10 @@ describe("user-visible messages", () => {
     ];
 
     expect(
-      userVisibleMessages(messages, { knownPeerRunIds: ["run-peer"] }).map((item) => item.id),
+      userVisibleMessages(messages, {
+        knownPeerRunIds: ["run-peer"],
+        knownPeerReportRunIds: ["run-peer"],
+      }).map((item) => item.id),
     ).toEqual(["reply", "answer"]);
   });
 

@@ -1,5 +1,5 @@
 import type { MessageBlock, ThreadMessage, ThreadMessagePage } from "@rakazo/contracts";
-import { isPeerReceiptBlocks, isPeerSummaryMessage } from "@rakazo/core";
+import { isPeerReceiptBlocks, isPeerReportBlocks, isPeerSummaryMessage } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "@rakazo/db";
 
 type MessageDb = PrismaClient | Prisma.TransactionClient;
@@ -35,9 +35,9 @@ export async function loadMessagePage(
       const hasOlder = first
         ? (await prisma.message.count({ where: { threadId, seq: { lt: first.seq } } })) > 0
         : false;
-      // Peer activity stays out of the normal transcript. Receipts and the
-      // receiving bot's final owner-facing summary remain; full peer history
-      // belongs in the bot-messages overlay (includePeerRuns).
+      // Peer activity stays out of the normal transcript. Receipts and a
+      // coordinator's user-facing report remain; assigned workers' replies
+      // belong in the bot-messages overlay (includePeerRuns).
       const messages = includePeerRuns ? rows : await withoutPeerRunMessages(prisma, rows);
       return {
         threadId,
@@ -100,13 +100,25 @@ async function withoutPeerRunMessages<
   if (runIds.length === 0) return rows;
   const peerRuns = await prisma.run.findMany({
     where: { id: { in: runIds }, trigger: "bot_message" },
-    select: { id: true },
+    select: { id: true, sourceMessage: { select: { blocks: true } } },
   });
   const peerRunIds = new Set(peerRuns.map((run) => run.id));
+  const peerReportRunIds = new Set(
+    peerRuns
+      .filter((run) =>
+        isPeerReportBlocks(
+          Array.isArray(run.sourceMessage?.blocks)
+            ? (run.sourceMessage.blocks as MessageBlock[])
+            : [],
+        ),
+      )
+      .map((run) => run.id),
+  );
   return rows.flatMap((row) => {
     if (!row.runId || !peerRunIds.has(row.runId)) return [row];
-    // Keep compact sent/received receipts and the bot's final summary for its
-    // owner. Tool activity and the underlying peer exchange stay hidden.
+    // Keep compact sent/received receipts. Only a coordinator woken by a
+    // result/status/fyi may publish a final report to the user; a worker woken
+    // by a request/question remains private to the peer exchange.
     const blocks = row.blocks as MessageBlock[];
     if (
       blocks.some(
@@ -115,7 +127,11 @@ async function withoutPeerRunMessages<
     ) {
       return [row];
     }
-    if (!isPeerSummaryMessage({ blocks, clientNonce: row.clientNonce })) return [];
+    if (
+      !peerReportRunIds.has(row.runId) ||
+      !isPeerSummaryMessage({ blocks, clientNonce: row.clientNonce })
+    )
+      return [];
 
     // A terminal peer message can also contain steps/tool activity. Only the
     // owner-facing text belongs in the normal transcript.
