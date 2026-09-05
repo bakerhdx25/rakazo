@@ -128,6 +128,38 @@ describe("createRepos.listBots", () => {
     );
   });
 
+  it("prefers the latest peer-report summary over earlier untagged mid-turn narration", async () => {
+    const findMany = vi.fn(async () => [
+      {
+        ...baseBot,
+        thread: {
+          ...baseBot.thread,
+          messages: [
+            {
+              seq: 3,
+              runId: "run-peer",
+              blocks: [{ kind: "text", text: "Coder finished the review." }],
+            },
+            {
+              seq: 2,
+              runId: "run-peer",
+              blocks: [{ kind: "text", text: "Still drafting the report." }],
+            },
+            { seq: 1, runId: "run-user", blocks: [{ kind: "text", text: "Visible answer" }] },
+          ],
+        },
+      },
+    ]);
+    const prisma = {
+      bot: { findMany },
+      run: { findMany: vi.fn(async () => [peerRun()]) },
+    };
+
+    await expect(createRepos(prisma as unknown as PrismaClient).listBots(actor)).resolves.toEqual([
+      expect.objectContaining({ preview: "Coder finished the review." }),
+    ]);
+  });
+
   it("uses a peer-work summary when the receipt is outside the preview window", async () => {
     const prisma = {
       bot: {

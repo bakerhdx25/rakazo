@@ -1,5 +1,5 @@
 import type { MessageBlock, ThreadMessage, ThreadMessagePage } from "@rakazo/contracts";
-import { isPeerReceiptBlocks, isPeerReportBlocks, isPeerSummaryMessage } from "@rakazo/core";
+import { isPeerReceiptBlocks, isPeerReportBlocks, terminalPeerSummaryIndexes } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "@rakazo/db";
 
 type MessageDb = PrismaClient | Prisma.TransactionClient;
@@ -94,7 +94,12 @@ export async function loadAllMessages(
 }
 
 async function withoutPeerRunMessages<
-  T extends { runId: string | null; clientNonce?: string | null; blocks: Prisma.JsonValue },
+  T extends {
+    runId: string | null;
+    seq?: number;
+    clientNonce?: string | null;
+    blocks: Prisma.JsonValue;
+  },
 >(prisma: MessageDb, rows: T[]): Promise<T[]> {
   const runIds = [...new Set(rows.flatMap((row) => (row.runId ? [row.runId] : [])))];
   if (runIds.length === 0) return rows;
@@ -114,7 +119,16 @@ async function withoutPeerRunMessages<
       )
       .map((run) => run.id),
   );
-  return rows.flatMap((row) => {
+  const terminalSummaryIndexes = terminalPeerSummaryIndexes(
+    rows.map((row) => ({
+      runId: row.runId ?? undefined,
+      seq: row.seq,
+      clientNonce: row.clientNonce,
+      blocks: row.blocks as MessageBlock[],
+    })),
+    peerReportRunIds,
+  );
+  return rows.flatMap((row, index) => {
     if (!row.runId || !peerRunIds.has(row.runId)) return [row];
     // Keep compact sent/received receipts. Only a coordinator woken by a
     // result/status/fyi may publish a final report to the user; a worker woken
@@ -127,11 +141,7 @@ async function withoutPeerRunMessages<
     ) {
       return [row];
     }
-    if (
-      !peerReportRunIds.has(row.runId) ||
-      !isPeerSummaryMessage({ blocks, clientNonce: row.clientNonce })
-    )
-      return [];
+    if (!peerReportRunIds.has(row.runId) || !terminalSummaryIndexes.has(index)) return [];
 
     // A terminal peer message can also contain steps/tool activity. Only the
     // owner-facing text belongs in the normal transcript.

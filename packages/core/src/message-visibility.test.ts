@@ -89,4 +89,64 @@ describe("user-visible messages", () => {
       userVisibleMessages([progress], { knownPeerRunIds: ["run-peer"] }).map((item) => item.id),
     ).toEqual([]);
   });
+
+  it("keeps untagged mid-turn text on a peer-report run hidden while a terminal summary still shows", () => {
+    const messages = [
+      {
+        ...message("received", "run-peer", [
+          {
+            kind: "bot_message_received" as const,
+            fromBotId: "coder",
+            fromBotName: "Coder",
+            text: "Done.",
+            intent: "result" as const,
+          },
+        ]),
+        seq: 1,
+      },
+      {
+        ...message("progress", "run-peer", [
+          { kind: "text" as const, text: "Still drafting the report." },
+        ]),
+        seq: 2,
+      },
+      {
+        ...message("summary", "run-peer", [
+          { kind: "text" as const, text: "Coder finished the review." },
+        ]),
+        seq: 3,
+      },
+    ];
+
+    expect(userVisibleMessages(messages).map((item) => item.id)).toEqual(["summary"]);
+  });
+
+  it("picks the latest peer summary by seq when messages are newest-first", () => {
+    const messages = [
+      {
+        ...message("summary", "run-peer", [{ kind: "text" as const, text: "Final report." }]),
+        seq: 3,
+      },
+      {
+        ...message("progress", "run-peer", [
+          { kind: "text" as const, text: "Still drafting the report." },
+        ]),
+        seq: 2,
+      },
+      {
+        ...message("received", "run-peer", [
+          {
+            kind: "bot_message_received" as const,
+            fromBotId: "coder",
+            fromBotName: "Coder",
+            text: "Done.",
+            intent: "result" as const,
+          },
+        ]),
+        seq: 1,
+      },
+    ];
+
+    expect(userVisibleMessages(messages).map((item) => item.id)).toEqual(["summary"]);
+  });
 });

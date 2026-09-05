@@ -2,6 +2,8 @@ import type { MessageBlock } from "@rakazo/contracts";
 
 type PresentableMessage = {
   runId?: string;
+  /** Present when callers can distinguish later messages across sort orders. */
+  seq?: number;
   clientNonce?: string | null;
   blocks: readonly MessageBlock[];
 };
@@ -39,12 +41,52 @@ export function isPeerReportBlocks(blocks: readonly MessageBlock[]): boolean {
   );
 }
 
-/** A bot's terminal summary after peer work, without mid-turn narration. */
+/**
+ * Candidate owner-facing text on a peer report run (not tagged mid-turn progress).
+ * Callers must still pick the latest candidate per run — earlier untagged narration
+ * is not itself a durable terminal summary.
+ */
 export function isPeerSummaryMessage(message: PresentableMessage): boolean {
   return (
     !isUserProgressClientNonce(message.clientNonce) &&
     message.blocks.some((block) => block.kind === "text" && block.text.trim().length > 0)
   );
+}
+
+function isLaterPeerSummary(
+  candidate: PresentableMessage,
+  candidateIndex: number,
+  current: PresentableMessage,
+  currentIndex: number,
+): boolean {
+  if (typeof candidate.seq === "number" && typeof current.seq === "number") {
+    return candidate.seq >= current.seq;
+  }
+  return candidateIndex >= currentIndex;
+}
+
+/**
+ * Indices of the latest peer-summary candidate per peer-report run.
+ * Prefers higher `seq` when present so desc and asc collections agree.
+ */
+export function terminalPeerSummaryIndexes(
+  messages: readonly PresentableMessage[],
+  peerReportRunIds: ReadonlySet<string>,
+): Set<number> {
+  const latestIndexByRunId = new Map<string, number>();
+  messages.forEach((message, index) => {
+    if (!message.runId || !peerReportRunIds.has(message.runId)) return;
+    if (isPeerReceiptBlocks(message.blocks)) return;
+    if (!isPeerSummaryMessage(message)) return;
+    const currentIndex = latestIndexByRunId.get(message.runId);
+    if (
+      currentIndex === undefined ||
+      isLaterPeerSummary(message, index, messages[currentIndex]!, currentIndex)
+    ) {
+      latestIndexByRunId.set(message.runId, index);
+    }
+  });
+  return new Set(latestIndexByRunId.values());
 }
 
 /** Drop peer-run activity; keep final summaries and optionally compact receipt rows. */
@@ -65,10 +107,11 @@ export function userVisibleMessages<T extends PresentableMessage>(
       .filter((message) => isPeerReportBlocks(message.blocks))
       .flatMap((message) => (message.runId ? [message.runId] : [])),
   ]);
+  const terminalSummaryIndexes = terminalPeerSummaryIndexes(messages, peerReportRunIds);
 
-  return messages.filter((message) => {
+  return messages.filter((message, index) => {
     if (isPeerReceiptBlocks(message.blocks)) return includePeerReceipts;
     if (!message.runId || !peerRunIds.has(message.runId)) return true;
-    return peerReportRunIds.has(message.runId) && isPeerSummaryMessage(message);
+    return peerReportRunIds.has(message.runId) && terminalSummaryIndexes.has(index);
   });
 }
