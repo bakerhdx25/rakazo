@@ -243,6 +243,51 @@ describe("thread message pages", () => {
     expect(page.messages.map((message) => message.id)).toEqual(["message-user", "message-summary"]);
   });
 
+  it("hides paginated peer narration when its terminal summary is on a newer page", async () => {
+    const progress = {
+      id: "message-progress",
+      threadId: "thread-1",
+      seq: 2,
+      role: "bot",
+      blocks: [{ kind: "text", text: "Still drafting the report." }],
+      botId: "bot-1",
+      replyToMessageId: null,
+      runId: "run-peer",
+      clientNonce: null,
+      createdAt: new Date("2026-08-16T00:00:02.000Z"),
+    };
+    const summary = {
+      ...progress,
+      id: "message-summary",
+      seq: 3,
+      blocks: [{ kind: "text", text: "Coder finished the review." }],
+      createdAt: new Date("2026-08-16T00:00:03.000Z"),
+    };
+    const visible = {
+      ...progress,
+      id: "message-user",
+      seq: 1,
+      blocks: [{ kind: "text", text: "Visible answer" }],
+      runId: "run-user",
+      createdAt: new Date("2026-08-16T00:00:01.000Z"),
+    };
+    const findMany = vi.fn(async (query: { where?: { runId?: unknown } }) =>
+      query.where?.runId ? [progress, summary] : [progress, visible],
+    );
+    const prisma = {
+      message: { findMany },
+      run: { findMany: vi.fn(async () => [peerRun()]) },
+    } as unknown as PrismaClient;
+
+    const page = await loadMessagePage(prisma, "thread-1", 3, 2);
+
+    expect(page.messages.map((message) => message.id)).toEqual(["message-user"]);
+    expect(findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ where: { runId: { in: ["run-peer"] } } }),
+    );
+  });
+
   it("projects mixed peer-run finals down to owner-facing text", async () => {
     const findMany = vi.fn(async () => [
       {

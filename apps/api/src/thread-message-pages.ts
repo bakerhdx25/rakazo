@@ -95,6 +95,7 @@ export async function loadAllMessages(
 
 async function withoutPeerRunMessages<
   T extends {
+    id: string;
     runId: string | null;
     seq?: number;
     clientNonce?: string | null;
@@ -119,8 +120,16 @@ async function withoutPeerRunMessages<
       )
       .map((run) => run.id),
   );
+  const peerReportMessages =
+    peerReportRunIds.size > 0
+      ? await prisma.message.findMany({
+          where: { runId: { in: [...peerReportRunIds] } },
+          orderBy: { seq: "asc" },
+          select: { id: true, runId: true, seq: true, clientNonce: true, blocks: true },
+        })
+      : [];
   const terminalSummaryIndexes = terminalPeerSummaryIndexes(
-    rows.map((row) => ({
+    peerReportMessages.map((row) => ({
       runId: row.runId ?? undefined,
       seq: row.seq,
       clientNonce: row.clientNonce,
@@ -128,7 +137,13 @@ async function withoutPeerRunMessages<
     })),
     peerReportRunIds,
   );
-  return rows.flatMap((row, index) => {
+  const terminalSummaryIds = new Set(
+    [...terminalSummaryIndexes].flatMap((index) => {
+      const message = peerReportMessages[index];
+      return message ? [message.id] : [];
+    }),
+  );
+  return rows.flatMap((row) => {
     if (!row.runId || !peerRunIds.has(row.runId)) return [row];
     // Keep compact sent/received receipts. Only a coordinator woken by a
     // result/status/fyi may publish a final report to the user; a worker woken
@@ -141,7 +156,7 @@ async function withoutPeerRunMessages<
     ) {
       return [row];
     }
-    if (!peerReportRunIds.has(row.runId) || !terminalSummaryIndexes.has(index)) return [];
+    if (!peerReportRunIds.has(row.runId) || !terminalSummaryIds.has(row.id)) return [];
 
     // A terminal peer message can also contain steps/tool activity. Only the
     // owner-facing text belongs in the normal transcript.

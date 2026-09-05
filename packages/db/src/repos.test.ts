@@ -338,7 +338,14 @@ describe("createRepos.listSpaceBotsForSpaces", () => {
         updatedAt: new Date("2026-08-20T00:00:00.000Z"),
         thread: {
           unread: true,
-          messages: [{ blocks: [{ kind: "text", text: "Waiting for a reply" }] }],
+          messages: [
+            {
+              seq: 1,
+              runId: null,
+              clientNonce: null,
+              blocks: [{ kind: "text", text: "Waiting for a reply" }],
+            },
+          ],
         },
         runs: [{ status: "running" }],
       },
@@ -372,6 +379,15 @@ describe("createRepos.listSpaceBotsForSpaces", () => {
     expect(query.select).not.toHaveProperty("description");
     expect(query.select).not.toHaveProperty("instructions");
     expect(query.select).not.toHaveProperty("computer");
+    expect(query.select.thread).toEqual(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          messages: expect.objectContaining({
+            select: { seq: true, blocks: true, runId: true, clientNonce: true },
+          }),
+        }),
+      }),
+    );
   });
 
   it("keeps assigned worker replies out of cross-space sidebar previews", async () => {

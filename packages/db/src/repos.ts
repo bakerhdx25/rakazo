@@ -122,7 +122,7 @@ export function createRepos(prisma: PrismaClient) {
             messages: {
               orderBy: { seq: "desc" },
               take: SIDEBAR_PREVIEW_MESSAGE_WINDOW,
-              select: { blocks: true, runId: true, clientNonce: true },
+              select: { seq: true, blocks: true, runId: true, clientNonce: true },
             },
           },
         },
