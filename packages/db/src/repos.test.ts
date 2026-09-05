@@ -256,6 +256,7 @@ describe("createRepos.listBots", () => {
       where: { threadId: "thread-1", seq: { lt: 20 } },
       orderBy: { seq: "desc" },
       take: 16,
+      select: { seq: true, blocks: true, runId: true, clientNonce: true },
     });
   });
 
@@ -388,6 +389,58 @@ describe("createRepos.listSpaceBotsForSpaces", () => {
         }),
       }),
     );
+  });
+
+  it("scans older messages when the newest cross-space window is only peer output", async () => {
+    const messageFindMany = vi.fn(async () => [
+      {
+        seq: 1,
+        runId: "run-user",
+        clientNonce: null,
+        blocks: [{ kind: "text", text: "Older visible answer" }],
+      },
+    ]);
+    const botFindMany = vi.fn(async () => [
+      {
+        id: "bot-2",
+        spaceId: "ws-2",
+        name: "Support",
+        title: "Customer support",
+        color: "#123456",
+        notifyOnFinish: false,
+        pinned: true,
+        sectionId: null,
+        updatedAt: new Date("2026-08-20T00:00:00.000Z"),
+        thread: {
+          id: "thread-2",
+          unread: true,
+          messages: [
+            {
+              seq: 20,
+              runId: "run-peer",
+              clientNonce: null,
+              blocks: [{ kind: "steps", steps: [{ label: "Peer work", count: 1 }] }],
+            },
+          ],
+        },
+        runs: [],
+      },
+    ]);
+    const repos = createRepos({
+      bot: { findMany: botFindMany },
+      run: { findMany: vi.fn(async () => [{ id: "run-peer" }]) },
+      message: { findMany: messageFindMany },
+    } as unknown as PrismaClient);
+
+    await expect(repos.listSpaceBotsForSpaces(actor, ["ws-2"])).resolves.toEqual([
+      expect.objectContaining({ preview: "Older visible answer" }),
+    ]);
+    expect(messageFindMany).toHaveBeenCalledWith({
+      where: { threadId: "thread-2", seq: { lt: 20 } },
+      orderBy: { seq: "desc" },
+      take: 16,
+      select: { seq: true, blocks: true, runId: true, clientNonce: true },
+    });
   });
 
   it("keeps assigned worker replies out of cross-space sidebar previews", async () => {

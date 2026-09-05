@@ -16,6 +16,68 @@ import { activeRunSelection, previewFromBlocks } from "./thread-listing.js";
 /** Newest messages loaded for sidebar preview; enough to skip a short peer-run tail. */
 const SIDEBAR_PREVIEW_MESSAGE_WINDOW = 16;
 
+type SidebarPreviewMessage = {
+  seq: number;
+  blocks: unknown;
+  runId: string | null;
+  clientNonce?: string | null;
+};
+
+/** Newest-window preview with bounded older scans after peer filtering. */
+async function resolveSidebarPreview(
+  prisma: PrismaClient,
+  threadId: string,
+  initialMessages: SidebarPreviewMessage[],
+  peerRunIds: Set<string>,
+  peerReportRunIds: Set<string>,
+): Promise<string> {
+  let messages = initialMessages;
+  let preview = "";
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const windowRunIds = [
+      ...new Set(messages.flatMap((message) => (message.runId ? [message.runId] : []))),
+    ].filter((runId) => !peerRunIds.has(runId));
+    if (windowRunIds.length > 0) {
+      const morePeers = await prisma.run.findMany({
+        where: { id: { in: windowRunIds }, trigger: "bot_message" },
+        select: { id: true, sourceMessage: { select: { blocks: true } } },
+      });
+      for (const run of morePeers) {
+        peerRunIds.add(run.id);
+        if (
+          isPeerReportBlocks(
+            Array.isArray(run.sourceMessage?.blocks)
+              ? (run.sourceMessage.blocks as MessageBlock[])
+              : [],
+          )
+        ) {
+          peerReportRunIds.add(run.id);
+        }
+      }
+    }
+    const visible = userVisibleMessages(
+      messages.map((message) => ({
+        ...message,
+        blocks: message.blocks as MessageBlock[],
+        runId: message.runId ?? undefined,
+      })),
+      { knownPeerRunIds: peerRunIds, knownPeerReportRunIds: peerReportRunIds },
+    );
+    preview = previewFromBlocks(visible[0]?.blocks);
+    if (preview || messages.length === 0 || attempt === 4) break;
+    const oldest = messages[messages.length - 1];
+    if (!oldest) break;
+    messages = await prisma.message.findMany({
+      where: { threadId, seq: { lt: oldest.seq } },
+      orderBy: { seq: "desc" },
+      take: SIDEBAR_PREVIEW_MESSAGE_WINDOW,
+      select: { seq: true, blocks: true, runId: true, clientNonce: true },
+    });
+    if (messages.length === 0) break;
+  }
+  return preview;
+}
+
 function mapBot(
   bot: {
     id: string;
@@ -118,6 +180,7 @@ export function createRepos(prisma: PrismaClient) {
         updatedAt: true,
         thread: {
           select: {
+            id: true,
             unread: true,
             messages: {
               orderBy: { seq: "desc" },
@@ -155,31 +218,32 @@ export function createRepos(prisma: PrismaClient) {
         )
         .map((run) => run.id),
     );
-    return bots.map((bot) => {
-      if (!bot.thread) throw new IsolationError("Bot is missing its thread");
-      const visibleMessages = userVisibleMessages(
-        bot.thread.messages.map((message) => ({
-          ...message,
-          blocks: message.blocks as MessageBlock[],
-          runId: message.runId ?? undefined,
-        })),
-        { knownPeerRunIds: peerRunIds, knownPeerReportRunIds: peerReportRunIds },
-      );
-      return {
-        id: bot.id,
-        spaceId: bot.spaceId,
-        name: bot.name,
-        title: bot.title,
-        color: bot.color,
-        notifyOnFinish: bot.notifyOnFinish,
-        pinned: bot.pinned,
-        sectionId: bot.sectionId,
-        unread: bot.thread.unread,
-        preview: previewFromBlocks(visibleMessages[0]?.blocks),
-        status: bot.runs[0]?.status ?? "idle",
-        updatedAt: bot.updatedAt.toISOString(),
-      };
-    });
+    return Promise.all(
+      bots.map(async (bot) => {
+        if (!bot.thread) throw new IsolationError("Bot is missing its thread");
+        const preview = await resolveSidebarPreview(
+          prisma,
+          bot.thread.id,
+          bot.thread.messages,
+          peerRunIds,
+          peerReportRunIds,
+        );
+        return {
+          id: bot.id,
+          spaceId: bot.spaceId,
+          name: bot.name,
+          title: bot.title,
+          color: bot.color,
+          notifyOnFinish: bot.notifyOnFinish,
+          pinned: bot.pinned,
+          sectionId: bot.sectionId,
+          unread: bot.thread.unread,
+          preview,
+          status: bot.runs[0]?.status ?? "idle",
+          updatedAt: bot.updatedAt.toISOString(),
+        };
+      }),
+    );
   }
 
   return {
@@ -303,49 +367,14 @@ export function createRepos(prisma: PrismaClient) {
       );
       return Promise.all(
         bots.map(async (bot) => {
-          let messages = bot.thread?.messages ?? [];
-          let preview = "";
-          for (let attempt = 0; attempt < 5; attempt++) {
-            const windowRunIds = [
-              ...new Set(messages.flatMap((message) => (message.runId ? [message.runId] : []))),
-            ].filter((runId) => !peerRunIds.has(runId));
-            if (windowRunIds.length > 0) {
-              const morePeers = await prisma.run.findMany({
-                where: { id: { in: windowRunIds }, trigger: "bot_message" },
-                select: { id: true, sourceMessage: { select: { blocks: true } } },
-              });
-              for (const run of morePeers) {
-                peerRunIds.add(run.id);
-                if (
-                  isPeerReportBlocks(
-                    Array.isArray(run.sourceMessage?.blocks)
-                      ? (run.sourceMessage.blocks as MessageBlock[])
-                      : [],
-                  )
-                ) {
-                  peerReportRunIds.add(run.id);
-                }
-              }
-            }
-            const visible = userVisibleMessages(
-              messages.map((message) => ({
-                ...message,
-                blocks: message.blocks as MessageBlock[],
-                runId: message.runId ?? undefined,
-              })),
-              { knownPeerRunIds: peerRunIds, knownPeerReportRunIds: peerReportRunIds },
-            );
-            preview = previewFromBlocks(visible[0]?.blocks);
-            if (preview || messages.length === 0 || !bot.thread || attempt === 4) break;
-            const oldest = messages[messages.length - 1];
-            if (!oldest) break;
-            messages = await prisma.message.findMany({
-              where: { threadId: bot.thread.id, seq: { lt: oldest.seq } },
-              orderBy: { seq: "desc" },
-              take: SIDEBAR_PREVIEW_MESSAGE_WINDOW,
-            });
-            if (messages.length === 0) break;
-          }
+          if (!bot.thread) throw new IsolationError("Bot is missing its thread");
+          const preview = await resolveSidebarPreview(
+            prisma,
+            bot.thread.id,
+            bot.thread.messages,
+            peerRunIds,
+            peerReportRunIds,
+          );
           return mapBot(bot, preview, bot.runs[0]?.status ?? "idle");
         }),
       );
