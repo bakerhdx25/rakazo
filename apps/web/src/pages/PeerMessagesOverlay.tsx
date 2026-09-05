@@ -3,6 +3,7 @@ import { ChatMarkdown } from "@rakazo/chat-ui/web";
 import type { ThreadMessage } from "@rakazo/contracts";
 import { BotAvatar, Button, Dialog, DialogClose, DialogContent, DialogTitle } from "@rakazo/ui-web";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { linkAbortSignal } from "../lib/link-abort-signal";
 import { hasPeerConversation, peerConversations } from "../lib/peer-messages";
 import { rpc } from "../lib/rpc";
 
@@ -57,13 +58,15 @@ export function PeerMessagesOverlay({
       const loadPage = async (target: { before?: number; around?: { messageId: string } }) => {
         const pageAbort = new AbortController();
         const abortPage = () => pageAbort.abort();
-        lifecycleAbort.signal.addEventListener("abort", abortPage, { once: true });
+        // If the cumulative deadline already fired between pages, abort now —
+        // a late addEventListener would miss the abort and wait on the page timer.
+        const unlink = linkAbortSignal(lifecycleAbort.signal, abortPage);
         const timeout = window.setTimeout(abortPage, 15_000);
         return rpc.threads
           .messages({ botId, ...target, includePeerRuns: true }, { signal: pageAbort.signal })
           .finally(() => {
             window.clearTimeout(timeout);
-            lifecycleAbort.signal.removeEventListener("abort", abortPage);
+            unlink();
           });
       };
 
@@ -75,6 +78,10 @@ export function PeerMessagesOverlay({
 
       let before: number | undefined;
       do {
+        if (cancelled) return;
+        if (historyDeadlineReached || lifecycleAbort.signal.aborted) {
+          throw new DOMException("Peer history deadline reached", "AbortError");
+        }
         const page = await loadPage(before === undefined ? {} : { before });
         if (cancelled) return;
         const merged = new Map(collected.map((message) => [message.id, message]));
