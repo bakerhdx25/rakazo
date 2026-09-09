@@ -51,6 +51,11 @@ describe("sealed screen capabilities", () => {
           }
         },
         attachHostClipboardPaste: () => {},
+        // Embed imports are stripped for this smoke; stub the touch-keyboard
+        // bridge the same way as clipboard. Returning false skips Keyboard /
+        // KeyTable / keysyms, which this harness does not provide.
+        isTouchBrowser: () => false,
+        attachMobileKeyboard: () => {},
       });
       const socket = new URL(socketUrl);
       expect(socket.protocol).toBe("wss:");
