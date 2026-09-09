@@ -33,11 +33,11 @@ describe("mobile computer keyboard", () => {
   });
 
   it("enables a visible relative-pointer mode", () => {
-    const listeners = new Map<string, EventListener>();
+    const listeners = new Map<string, () => void>();
     const classes = new Set<string>();
     const button = {
       hidden: true,
-      addEventListener: (type: string, listener: EventListener) => listeners.set(type, listener),
+      addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
       removeEventListener: () => {},
       setAttribute: () => {},
       classList: {
@@ -52,7 +52,7 @@ describe("mobile computer keyboard", () => {
     };
     const rfb = { viewOnly: false, showDotCursor: false };
     const detach = attachMobileTrackpad(rfb, { button, surface, documentTarget: {} });
-    listeners.get("click")?.(new Event("click"));
+    listeners.get("click")?.();
     expect(button.hidden).toBe(false);
     expect(rfb.showDotCursor).toBe(true);
     expect(classes.has("active")).toBe(true);

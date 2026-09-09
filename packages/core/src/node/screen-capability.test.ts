@@ -40,7 +40,7 @@ describe("sealed screen capabilities", () => {
       );
       const script = html
         .match(/<script type="module">([\s\S]*?)<\/script>/)![1]!
-        .replace(/^\s*import .*;$/gm, "");
+        .replace(/^\s*import[\s\S]*?;\s*$/gm, "");
       let socketUrl = "";
       runInNewContext(script, {
         document: { location: url, getElementById: () => ({}) },

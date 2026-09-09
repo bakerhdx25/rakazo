@@ -9,6 +9,19 @@ export function isTouchBrowser(
   windowLike?: object,
 ): boolean;
 
+export function attachMobileTrackpad(
+  rfb: {
+    viewOnly?: boolean;
+    showDotCursor?: boolean;
+  },
+  options: {
+    button: unknown;
+    surface: unknown;
+    documentTarget?: unknown;
+    sensitivity?: number;
+  },
+): () => void;
+
 export function attachMobileKeyboard(
   rfb: {
     viewOnly?: boolean;
@@ -22,5 +35,6 @@ export function attachMobileKeyboard(
     backspaceKeysym: number;
     lookupKeysym: (codePoint: number) => number;
     documentTarget?: unknown;
+    windowTarget?: unknown;
   },
 ): () => void;
