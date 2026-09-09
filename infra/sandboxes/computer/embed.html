@@ -32,9 +32,9 @@
         outline: 3px solid Highlight;
         outline-offset: 1px;
       }
-      #mobile-keyboard span {
-        font-size: 24px;
-        line-height: 1;
+      #mobile-keyboard svg {
+        width: 100%;
+        height: 100%;
       }
       #mobile-keyboard-input {
         position: fixed;
@@ -95,7 +95,10 @@
       title="Show keyboard"
       hidden
     >
-      <span aria-hidden="true">⌨︎</span>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M6 16h12" />
+      </svg>
     </button>
     <textarea
       id="mobile-keyboard-input"

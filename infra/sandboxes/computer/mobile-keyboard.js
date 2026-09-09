@@ -79,12 +79,8 @@ export function attachMobileKeyboard(
   };
   const keepOpen = (event) => {
     if (documentTarget.activeElement !== input) return;
-    // Let the toggle control dismiss without preventDefault swallowing the tap.
-    if (event.target === button || button.contains?.(event.target)) return;
     event.preventDefault();
   };
-  // Touch/pointer first: blur can run before a synthesized mousedown on mobile.
-  const keepOpenEvents = ["pointerdown", "touchstart", "mousedown"];
 
   resetInput();
   const keyboard = new Keyboard(input);
@@ -95,9 +91,7 @@ export function attachMobileKeyboard(
   input.addEventListener("input", onInput);
   input.addEventListener("focus", onFocus);
   input.addEventListener("blur", onBlur);
-  for (const type of keepOpenEvents) {
-    documentTarget.documentElement.addEventListener(type, keepOpen, true);
-  }
+  documentTarget.documentElement.addEventListener("mousedown", keepOpen, true);
 
   return () => {
     keyboard.ungrab?.();
@@ -105,8 +99,6 @@ export function attachMobileKeyboard(
     input.removeEventListener("input", onInput);
     input.removeEventListener("focus", onFocus);
     input.removeEventListener("blur", onBlur);
-    for (const type of keepOpenEvents) {
-      documentTarget.documentElement.removeEventListener(type, keepOpen, true);
-    }
+    documentTarget.documentElement.removeEventListener("mousedown", keepOpen, true);
   };
 }
