@@ -13,10 +13,45 @@
         background: #0e0e10;
         overflow: hidden;
       }
+      #mobile-keyboard {
+        position: fixed;
+        right: max(12px, env(safe-area-inset-right));
+        bottom: max(12px, env(safe-area-inset-bottom));
+        z-index: 2;
+        box-sizing: border-box;
+        width: 48px;
+        height: 48px;
+        padding: 11px;
+        border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+        border-radius: 12px;
+        background: Canvas;
+        color: CanvasText;
+        box-shadow: 0 2px 10px color-mix(in srgb, CanvasText 25%, transparent);
+      }
+      #mobile-keyboard.active {
+        outline: 3px solid Highlight;
+        outline-offset: 1px;
+      }
+      #mobile-keyboard span {
+        font-size: 24px;
+        line-height: 1;
+      }
+      #mobile-keyboard-input {
+        position: fixed;
+        left: -40px;
+        width: 1px;
+        height: 1px;
+        border: 0;
+        opacity: 0;
+      }
     </style>
     <script type="module">
       import { attachHostClipboardPaste } from "./clipboard-bridge.js";
+      import Keyboard from "./core/input/keyboard.js";
+      import KeyTable from "./core/input/keysym.js";
+      import keysyms from "./core/input/keysymdef.js";
       import RFB from "./core/rfb.js";
+      import { attachMobileKeyboard, isTouchBrowser } from "./mobile-keyboard.js";
 
       function query(name, fallback) {
         const match = `${document.location.href}${window.location.hash}`.match(
@@ -39,9 +74,36 @@
       rfb.scaleViewport = true;
       rfb.clipViewport = false;
       if (!rfb.viewOnly) attachHostClipboardPaste(rfb);
+      if (!rfb.viewOnly && isTouchBrowser()) {
+        attachMobileKeyboard(rfb, {
+          button: document.getElementById("mobile-keyboard"),
+          input: document.getElementById("mobile-keyboard-input"),
+          Keyboard,
+          backspaceKeysym: KeyTable.XK_BackSpace,
+          lookupKeysym: keysyms.lookup,
+        });
+      }
     </script>
   </head>
   <body>
     <div id="screen"></div>
+    <button
+      id="mobile-keyboard"
+      type="button"
+      aria-label="Show keyboard"
+      aria-pressed="false"
+      title="Show keyboard"
+      hidden
+    >
+      <span aria-hidden="true">⌨︎</span>
+    </button>
+    <textarea
+      id="mobile-keyboard-input"
+      aria-label="Remote computer keyboard input"
+      autocapitalize="off"
+      autocomplete="off"
+      spellcheck="false"
+      tabindex="-1"
+    ></textarea>
   </body>
 </html>
