@@ -26,6 +26,112 @@ export function isTouchBrowser(navigatorLike = globalThis.navigator, windowLike 
   return Boolean(navigatorLike?.maxTouchPoints > 0 || "ontouchstart" in windowLike);
 }
 
+/** Add a relative touch trackpad that drives noVNC's mouse canvas. */
+export function attachMobileTrackpad(
+  rfb,
+  { button, surface, documentTarget = globalThis.document, sensitivity = 1.5 },
+) {
+  if (!button || !surface || !documentTarget || rfb.viewOnly) return () => {};
+
+  let enabled = false;
+  let pointerId = null;
+  let lastX = 0;
+  let lastY = 0;
+  let cursorX = null;
+  let cursorY = null;
+  let moved = false;
+
+  const canvas = () => surface.querySelector("canvas");
+  const mouse = (type, buttonNumber = 0) => {
+    const target = canvas();
+    if (!target || cursorX == null || cursorY == null) return;
+    target.dispatchEvent(
+      new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        clientX: cursorX,
+        clientY: cursorY,
+        button: buttonNumber,
+        buttons: type === "mousedown" ? 1 : 0,
+      }),
+    );
+  };
+  const positionCursor = (deltaX = 0, deltaY = 0) => {
+    const target = canvas();
+    if (!target) return;
+    const bounds = target.getBoundingClientRect();
+    cursorX ??= bounds.left + bounds.width / 2;
+    cursorY ??= bounds.top + bounds.height / 2;
+    cursorX = Math.max(bounds.left, Math.min(bounds.right - 1, cursorX + deltaX * sensitivity));
+    cursorY = Math.max(bounds.top, Math.min(bounds.bottom - 1, cursorY + deltaY * sensitivity));
+    mouse("mousemove");
+  };
+  const setEnabled = (next) => {
+    enabled = next;
+    const label = enabled ? "Use direct touch" : "Use trackpad";
+    button.setAttribute("aria-pressed", String(enabled));
+    button.setAttribute("aria-label", label);
+    button.setAttribute("title", label);
+    button.classList.toggle("active", enabled);
+    surface.classList.toggle("trackpad-active", enabled);
+    rfb.showDotCursor = enabled;
+    if (enabled) positionCursor();
+  };
+  const onButtonClick = () => setEnabled(!enabled);
+  const shouldHandle = (event) => enabled && event.pointerType !== "mouse";
+  const consume = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const onPointerDown = (event) => {
+    if (!shouldHandle(event) || pointerId !== null) return;
+    consume(event);
+    pointerId = event.pointerId;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    moved = false;
+    event.target.setPointerCapture?.(event.pointerId);
+  };
+  const onPointerMove = (event) => {
+    if (!shouldHandle(event) || event.pointerId !== pointerId) return;
+    consume(event);
+    const deltaX = event.clientX - lastX;
+    const deltaY = event.clientY - lastY;
+    if (Math.abs(deltaX) + Math.abs(deltaY) > 1) moved = true;
+    positionCursor(deltaX, deltaY);
+    lastX = event.clientX;
+    lastY = event.clientY;
+  };
+  const finishPointer = (event, click) => {
+    if (!shouldHandle(event) || event.pointerId !== pointerId) return;
+    consume(event);
+    if (click && !moved) {
+      mouse("mousedown");
+      mouse("mouseup");
+    }
+    pointerId = null;
+  };
+  const onPointerUp = (event) => finishPointer(event, true);
+  const onPointerCancel = (event) => finishPointer(event, false);
+
+  button.hidden = false;
+  button.addEventListener("click", onButtonClick);
+  surface.addEventListener("pointerdown", onPointerDown, true);
+  surface.addEventListener("pointermove", onPointerMove, true);
+  surface.addEventListener("pointerup", onPointerUp, true);
+  surface.addEventListener("pointercancel", onPointerCancel, true);
+
+  return () => {
+    button.removeEventListener("click", onButtonClick);
+    surface.removeEventListener("pointerdown", onPointerDown, true);
+    surface.removeEventListener("pointermove", onPointerMove, true);
+    surface.removeEventListener("pointerup", onPointerUp, true);
+    surface.removeEventListener("pointercancel", onPointerCancel, true);
+    surface.classList.remove("trackpad-active");
+    rfb.showDotCursor = false;
+  };
+}
+
 /**
  * Connect a hidden text field to noVNC so iOS and Android keyboards can type
  * into the remote desktop. This follows noVNC's full-interface keyboard flow.

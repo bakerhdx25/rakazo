@@ -60,8 +60,13 @@ test("touch users can open and dismiss the remote computer keyboard", async ({
 
   await page.goto("http://keyboard.test/embed.html");
   const keyboardButton = page.getByRole("button", { name: "Show keyboard" });
+  const trackpadButton = page.getByRole("button", { name: "Use trackpad" });
   const keyboardInput = page.getByRole("textbox", { name: "Remote computer keyboard input" });
   await expect(keyboardButton).toBeVisible();
+  await expect(trackpadButton).toBeVisible();
+
+  await trackpadButton.click();
+  await expect(page.getByRole("button", { name: "Use direct touch" })).toBeVisible();
 
   await keyboardButton.click();
   await expect(page.getByRole("button", { name: "Hide keyboard" })).toBeVisible();

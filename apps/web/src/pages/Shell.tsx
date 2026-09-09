@@ -512,10 +512,32 @@ export function ShellPage() {
   const [routineError, setRoutineError] = useState<string | null>(null);
   const [screenUrl, setScreenUrl] = useState<string | null>(null);
   const [computerOpen, setComputerOpen] = useState(false);
+  const [computerViewport, setComputerViewport] = useState<{
+    height: number;
+    offsetTop: number;
+  } | null>(null);
   const [computerError, setComputerError] = useState<string | null>(null);
   // Screen-load failures can sit beside a still-valid embed URL; boot and
   // takeover failures must stay visible even when a URL remains.
   const [computerErrorFromScreen, setComputerErrorFromScreen] = useState(false);
+  useEffect(() => {
+    if (!computerOpen) {
+      setComputerViewport(null);
+      return;
+    }
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const sync = () => {
+      setComputerViewport({ height: viewport.height, offsetTop: viewport.offsetTop });
+    };
+    sync();
+    viewport.addEventListener("resize", sync);
+    viewport.addEventListener("scroll", sync);
+    return () => {
+      viewport.removeEventListener("resize", sync);
+      viewport.removeEventListener("scroll", sync);
+    };
+  }, [computerOpen]);
   useEffect(() => {
     if (!session.data?.user) return;
     let cancelled = false;
@@ -3927,7 +3949,13 @@ export function ShellPage() {
           </div>
         </div>
       ) : computerOpen && active ? (
-        <div className="absolute inset-0 z-30 flex flex-col bg-background">
+        <div
+          className="fixed inset-x-0 top-0 z-30 flex flex-col bg-background"
+          style={{
+            height: computerViewport ? `${computerViewport.height}px` : "100dvh",
+            top: computerViewport ? `${computerViewport.offsetTop}px` : undefined,
+          }}
+        >
           <div
             data-testid="computer-chrome"
             className="flex items-center justify-between gap-4 border-b border-sidebar-border px-[18px] py-3.5"
