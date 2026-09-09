@@ -37,6 +37,7 @@ export function attachMobileKeyboard(
   if (!button || !input || !Keyboard || !documentTarget || rfb.viewOnly) return () => {};
 
   let lastValue = "";
+  let closeOnButtonClick = false;
   const resetInput = () => {
     input.value = "_".repeat(DEFAULT_INPUT_LENGTH - 1);
     lastValue = input.value;
@@ -55,7 +56,15 @@ export function attachMobileKeyboard(
     input.setSelectionRange?.(length, length);
   };
   const hide = () => input.blur();
-  const onButtonClick = () => (documentTarget.activeElement === input ? hide() : show());
+  const onButtonPressStart = () => {
+    if (documentTarget.activeElement === input) closeOnButtonClick = true;
+  };
+  const onButtonClick = () => {
+    const shouldHide = closeOnButtonClick || documentTarget.activeElement === input;
+    closeOnButtonClick = false;
+    if (shouldHide) hide();
+    else show();
+  };
   const onFocus = () => setOpen(true);
   const onBlur = () => setOpen(false);
   const onInput = (event) => {
@@ -91,6 +100,7 @@ export function attachMobileKeyboard(
   keyboard.onkeyevent = (keysym, code, down) => rfb.sendKey(keysym, code, down);
   keyboard.grab();
   button.hidden = false;
+  for (const type of keepOpenEvents) button.addEventListener(type, onButtonPressStart);
   button.addEventListener("click", onButtonClick);
   input.addEventListener("input", onInput);
   input.addEventListener("focus", onFocus);
@@ -101,6 +111,7 @@ export function attachMobileKeyboard(
 
   return () => {
     keyboard.ungrab?.();
+    for (const type of keepOpenEvents) button.removeEventListener(type, onButtonPressStart);
     button.removeEventListener("click", onButtonClick);
     input.removeEventListener("input", onInput);
     input.removeEventListener("focus", onFocus);

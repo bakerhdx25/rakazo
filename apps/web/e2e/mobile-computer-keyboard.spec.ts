@@ -18,8 +18,12 @@ test("touch users can open and dismiss the remote computer keyboard", async ({
     [
       "/core/rfb.js",
       `export default class RFB {
-        constructor() { this.viewOnly = false; this.focusOnClick = true; }
-        sendKey() {}
+        constructor() {
+          this.viewOnly = false;
+          this.focusOnClick = true;
+          globalThis.__rfbKeys = [];
+        }
+        sendKey(...args) { globalThis.__rfbKeys.push(args); }
       }`,
     ],
     [
@@ -57,6 +61,12 @@ test("touch users can open and dismiss the remote computer keyboard", async ({
   await expect(page.getByRole("button", { name: "Hide keyboard" })).toBeVisible();
   await expect(keyboardInput).toBeFocused();
   await keyboardInput.pressSequentially("mobile typing");
+  const forwardedKeysyms = await page.evaluate(() =>
+    Reflect.get(globalThis, "__rfbKeys").map(([keysym]: [number]) => keysym),
+  );
+  expect(forwardedKeysyms).toEqual(
+    Array.from("mobile typing", (character) => character.codePointAt(0)),
+  );
   await captureScreenshot(page, testInfo, "mobile-computer-keyboard-open");
 
   await page.getByRole("button", { name: "Hide keyboard" }).click();
