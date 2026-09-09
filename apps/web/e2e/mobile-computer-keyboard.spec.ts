@@ -40,6 +40,12 @@ test("touch users can open and dismiss the remote computer keyboard", async ({
 
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "maxTouchPoints", { configurable: true, value: 1 });
+    const viewport = new EventTarget();
+    Object.defineProperties(viewport, {
+      height: { configurable: true, value: 420 },
+      offsetTop: { configurable: true, value: 12 },
+    });
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: viewport });
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("http://keyboard.test/**", async (route) => {
@@ -60,6 +66,16 @@ test("touch users can open and dismiss the remote computer keyboard", async ({
   await keyboardButton.click();
   await expect(page.getByRole("button", { name: "Hide keyboard" })).toBeVisible();
   await expect(keyboardInput).toBeFocused();
+  await expect(page.locator("html")).toHaveClass(/mobile-keyboard-open/);
+  await expect(page.locator("#screen")).toHaveCSS("height", "420px");
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        height: document.documentElement.style.getPropertyValue("--mobile-visual-height"),
+        top: document.documentElement.style.getPropertyValue("--mobile-visual-top"),
+      })),
+    )
+    .toEqual({ height: "420px", top: "12px" });
   await keyboardInput.pressSequentially("mobile typing");
   const forwardedKeysyms = await page.evaluate(() =>
     Reflect.get(globalThis, "__rfbKeys").map(([keysym]: [number]) => keysym),
@@ -72,4 +88,12 @@ test("touch users can open and dismiss the remote computer keyboard", async ({
   await page.getByRole("button", { name: "Hide keyboard" }).click();
   await expect(keyboardButton).toBeVisible();
   await expect(keyboardInput).not.toBeFocused();
+  await expect(page.locator("html")).not.toHaveClass(/mobile-keyboard-open/);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.documentElement.style.getPropertyValue("--mobile-visual-height"),
+      ),
+    )
+    .toBe("");
 });

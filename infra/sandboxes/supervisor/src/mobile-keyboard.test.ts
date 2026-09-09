@@ -37,6 +37,8 @@ describe("mobile computer keyboard", () => {
     expect(dockerfile).toMatch(/mobile-keyboard\.js/);
     expect(embed).toMatch(/attachMobileKeyboard/);
     expect(embed).toMatch(/mobile-keyboard-input/);
+    expect(embed).toMatch(/mobile-keyboard-open #screen/);
+    expect(embed).toMatch(/--mobile-visual-height/);
     expect(start).toMatch(/mobile-keyboard\.js/);
     expect(supervisor).toMatch(/"mobile-keyboard\.js"/);
   });

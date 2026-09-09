@@ -16,7 +16,10 @@
       #mobile-keyboard {
         position: fixed;
         right: max(12px, env(safe-area-inset-right));
-        bottom: max(12px, env(safe-area-inset-bottom));
+        top: calc(
+          var(--mobile-visual-top, 0px) + var(--mobile-visual-height, 100dvh) - 60px -
+            env(safe-area-inset-bottom)
+        );
         z-index: 2;
         box-sizing: border-box;
         width: 48px;
@@ -43,6 +46,12 @@
         height: 1px;
         border: 0;
         opacity: 0;
+      }
+      .mobile-keyboard-open #screen {
+        position: fixed;
+        top: var(--mobile-visual-top, 0px);
+        left: 0;
+        height: var(--mobile-visual-height, 100dvh);
       }
     </style>
     <script type="module">

@@ -32,12 +32,31 @@ export function isTouchBrowser(navigatorLike = globalThis.navigator, windowLike 
  */
 export function attachMobileKeyboard(
   rfb,
-  { button, input, Keyboard, backspaceKeysym, lookupKeysym, documentTarget = globalThis.document },
+  {
+    button,
+    input,
+    Keyboard,
+    backspaceKeysym,
+    lookupKeysym,
+    documentTarget = globalThis.document,
+    windowTarget = documentTarget?.defaultView ?? globalThis,
+  },
 ) {
   if (!button || !input || !Keyboard || !documentTarget || rfb.viewOnly) return () => {};
 
   let lastValue = "";
   let closeOnButtonClick = false;
+  const visualViewport = windowTarget?.visualViewport;
+  const viewportRoot = documentTarget.documentElement;
+  const updateVisibleViewport = () => {
+    if (documentTarget.activeElement !== input || !visualViewport) return;
+    viewportRoot.style.setProperty("--mobile-visual-height", `${visualViewport.height}px`);
+    viewportRoot.style.setProperty("--mobile-visual-top", `${visualViewport.offsetTop}px`);
+  };
+  const clearVisibleViewport = () => {
+    viewportRoot.style.removeProperty("--mobile-visual-height");
+    viewportRoot.style.removeProperty("--mobile-visual-top");
+  };
   const resetInput = () => {
     input.value = "_".repeat(DEFAULT_INPUT_LENGTH - 1);
     lastValue = input.value;
@@ -48,6 +67,9 @@ export function attachMobileKeyboard(
     button.setAttribute("aria-label", label);
     button.setAttribute("title", label);
     button.classList.toggle("active", open);
+    viewportRoot.classList.toggle("mobile-keyboard-open", open);
+    if (open) updateVisibleViewport();
+    else clearVisibleViewport();
     rfb.focusOnClick = !open;
   };
   const show = () => {
@@ -105,6 +127,8 @@ export function attachMobileKeyboard(
   input.addEventListener("input", onInput);
   input.addEventListener("focus", onFocus);
   input.addEventListener("blur", onBlur);
+  visualViewport?.addEventListener("resize", updateVisibleViewport);
+  visualViewport?.addEventListener("scroll", updateVisibleViewport);
   for (const type of keepOpenEvents) {
     documentTarget.documentElement.addEventListener(type, keepOpen, true);
   }
@@ -116,6 +140,10 @@ export function attachMobileKeyboard(
     input.removeEventListener("input", onInput);
     input.removeEventListener("focus", onFocus);
     input.removeEventListener("blur", onBlur);
+    visualViewport?.removeEventListener("resize", updateVisibleViewport);
+    visualViewport?.removeEventListener("scroll", updateVisibleViewport);
+    viewportRoot.classList.remove("mobile-keyboard-open");
+    clearVisibleViewport();
     for (const type of keepOpenEvents) {
       documentTarget.documentElement.removeEventListener(type, keepOpen, true);
     }
