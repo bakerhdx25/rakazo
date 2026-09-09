@@ -70,11 +70,7 @@
       import KeyTable from "./core/input/keysym.js";
       import keysyms from "./core/input/keysymdef.js";
       import RFB from "./core/rfb.js";
-      import {
-        attachMobileKeyboard,
-        attachMobileTrackpad,
-        isTouchBrowser,
-      } from "./mobile-keyboard.js";
+      import { attachMobileKeyboard, attachMobileTrackpad, isTouchBrowser } from "./mobile-keyboard.js";
 
       function query(name, fallback) {
         const match = `${document.location.href}${window.location.hash}`.match(
