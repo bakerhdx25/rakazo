@@ -2468,7 +2468,14 @@ export function ShellPage() {
         const swipe = mobileSidebarSwipeRef.current;
         mobileSidebarSwipeRef.current = null;
         const touch = event.changedTouches[0];
-        if (!swipe || !touch) return;
+        if (
+          !swipe ||
+          !touch ||
+          mobileSidebarOpen ||
+          window.matchMedia("(min-width: 768px)").matches
+        ) {
+          return;
+        }
         const rtl = document.documentElement.getAttribute("dir") === "rtl";
         const horizontal = rtl ? swipe.startX - touch.clientX : touch.clientX - swipe.startX;
         const vertical = Math.abs(touch.clientY - swipe.startY);

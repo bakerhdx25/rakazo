@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
-import { completeOnboarding, signup } from "./helpers";
+import { captureScreenshot, completeOnboarding, signup } from "./helpers";
 
 test.use({
   hasTouch: true,
@@ -57,7 +57,7 @@ async function swipe(page: Page, start: [number, number], end: [number, number])
   );
 }
 
-test("swiping inward from the mobile edge opens the bots sidebar", async ({ page }) => {
+test("swiping inward from the mobile edge opens the bots sidebar", async ({ page }, testInfo) => {
   await prepareOnboarding(page);
   const stamp = Date.now();
   await signup(page, `mobile-sidebar-swipe-${stamp}@rakazo.test`, "password12", "Swipe Test");
@@ -74,6 +74,7 @@ test("swiping inward from the mobile edge opens the bots sidebar", async ({ page
   await expect(closeNavigation).toBeVisible();
   await expect(page.getByTestId("mobile-sidebar-swipe-edge")).toHaveCount(0);
   await expect(page.getByTestId("bots-sidebar")).toContainText("Chief");
+  await captureScreenshot(page, testInfo, "mobile-sidebar-edge-swipe-open");
 });
 
 test("the mobile edge swipe follows right-to-left layout direction", async ({ page }) => {
